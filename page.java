@@ -1,288 +1,120 @@
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 
 public class page {
+    // 1. GLOBAL COMPONENTS: These allow all buttons to "talk" to the same deck of pages
+    private static CardLayout cardLayout = new CardLayout();
+    private static JPanel cardPanel = new JPanel(cardLayout);
 
     public static void main(String[] args) {
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); }
+        catch (Exception ignored) {}
         SwingUtilities.invokeLater(page::createAndShowUI);
     }
 
-    // Made public so other classes (like LoginPage) can open the payroll window
     public static void createAndShowUI() {
-        JFrame frame = new JFrame("Payroll System");
+        JFrame frame = new JFrame("Integrated Payroll & HR System");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setExtendedState(JFrame.MAXIMIZED_BOTH); // fill screen
-        frame.setMinimumSize(new Dimension(1024, 600));
+        frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+        frame.setMinimumSize(new Dimension(1200, 800));
 
-        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel mainPanel = new JPanel(new BorderLayout());
 
-        // Top area: title + search panel
-        JPanel topPanel = new JPanel(new BorderLayout(5, 5));
+        // --- SIDE NAVIGATION PANEL ---
+        JPanel leftPanel = new JPanel();
+        leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
+        leftPanel.setPreferredSize(new Dimension(220, 0));
+        leftPanel.setBackground(new Color(45, 52, 54)); // Dark professional theme
+        leftPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Color.BLACK));
 
-        JLabel titleLabel = new JLabel("Payroll System", SwingConstants.CENTER);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 18f));
-        topPanel.add(titleLabel, BorderLayout.NORTH);
+        // --- BUTTON DEFINITIONS ---
+        // To add a NEW BUTTON: 1. Declare it here. 2. Add it to leftPanel. 3. Add listener at bottom.
+        JButton btnDeduct    = createNavButton("Deductions");
+        JButton btnComp      = createNavButton("Compensations");
+        JButton btnAllow     = createNavButton("Allowances");
+        JButton btnMove      = createNavButton("Movements");
+        JButton btnServCharge      = createNavButton("Service Charge");
+        JButton btnInfo      = createNavButton("Information");
+        JButton btnExit      = createNavButton("Logout");
 
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        JLabel searchLabel = new JLabel("Search (ID or Name):");
-        JTextField searchField = new JTextField(20);
-        JButton searchButton = new JButton("Search");
+        // Styling the Headers
+        leftPanel.add(btnInfo);
+        leftPanel.add(btnMove);
+        leftPanel.add(btnDeduct);
+        leftPanel.add(btnComp);
+        leftPanel.add(btnServCharge);
+        leftPanel.add(btnAllow);
 
-        searchPanel.add(searchLabel);
-        searchPanel.add(searchField);
-        searchPanel.add(searchButton);
+        leftPanel.add(Box.createVerticalGlue());
+        leftPanel.add(btnExit);
+        leftPanel.add(Box.createVerticalStrut(10));
 
-        topPanel.add(searchPanel, BorderLayout.SOUTH);
+        // --- CARD PANEL SETUP (The "Pages") ---
+        // To add a NEW PAGE: 1. Create a method for it. 2. Add it here with a name.
+        cardPanel.add(createGenericPage("Profile Information", new Color(255, 235, 235)), "PAGE_INFO");
+        cardPanel.add(createGenericPage("Deductions Management", new Color(255, 235, 235)), "PAGE_DEDUCT");
+        cardPanel.add(createGenericPage("Compensations & Bonuses", new Color(235, 255, 235)), "PAGE_COMP");
+        cardPanel.add(createGenericPage("Allowances & Perks", new Color(235, 245, 255)), "PAGE_ALLOW");
+        cardPanel.add(createGenericPage("Employee Movements / Transfers", Color.WHITE), "PAGE_MOVE");
+        cardPanel.add(createGenericPage("Service Charge", new Color(255, 235, 235)), "PAGE_SERVECHARGE");
 
-        mainPanel.add(topPanel, BorderLayout.NORTH);
+        // --- NAVIGATION LISTENERS ---
+        // This logic connects the button click to the card swap
+        btnDeduct.addActionListener(e -> cardLayout.show(cardPanel, "PAGE_DEDUCT"));
+        btnComp.addActionListener(e -> cardLayout.show(cardPanel, "PAGE_COMP"));
+        btnAllow.addActionListener(e -> cardLayout.show(cardPanel, "PAGE_ALLOW"));
+        btnMove.addActionListener(e -> cardLayout.show(cardPanel, "PAGE_MOVE"));
+        btnExit.addActionListener(e -> System.exit(0));
 
-        // --- Left button section (navigation / actions) ---
-        JPanel leftButtons = new JPanel();
-        leftButtons.setLayout(new BoxLayout(leftButtons, BoxLayout.Y_AXIS));
-        leftButtons.setBorder(BorderFactory.createTitledBorder("Actions"));
+        mainPanel.add(leftPanel, BorderLayout.WEST);
+        mainPanel.add(cardPanel, BorderLayout.CENTER);
 
-        JButton newEmployeeBtn = new JButton("New Employee");
-        JButton clearFormBtn = new JButton("Clear Form");
-        JButton removeRowBtn = new JButton("Remove Selected");
-        JButton deductionsBtn = new JButton("Deductions && Contributions");
-        JButton exitBtn = new JButton("Exit");
-
-        // --- Top form with payroll details ---
-        JPanel formPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 0;
-
-        JLabel idLabel = new JLabel("Employee ID:");
-        JTextField idField = new JTextField(15);
-
-        JLabel nameLabel = new JLabel("Employee Name:");
-        JTextField nameField = new JTextField(20);
-
-        JLabel periodLabel = new JLabel("Pay Period:");
-        JTextField periodField = new JTextField("2026-03", 10);
-
-        JLabel hoursLabel = new JLabel("Hours Worked:");
-        JTextField hoursField = new JTextField(10);
-
-        JLabel overtimeLabel = new JLabel("Overtime Hours:");
-        JTextField overtimeField = new JTextField("0", 10);
-
-        JLabel rateLabel = new JLabel("Hourly Rate:");
-        JTextField rateField = new JTextField(10);
-
-        JLabel deductionsLabel = new JLabel("Deductions:");
-        JTextField deductionsField = new JTextField("0.00", 10);
-
-        JLabel grossLabel = new JLabel("Gross Pay:");
-        JTextField grossField = new JTextField(10);
-        grossField.setEditable(false);
-
-        JLabel netLabel = new JLabel("Net Pay:");
-        JTextField netField = new JTextField(10);
-        netField.setEditable(false);
-
-        JButton calcButton = new JButton("Calculate & Add to History");
-
-        // Layout the form in two columns
-        int row = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(idLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(idField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(nameLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(nameField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(periodLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(periodField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(hoursLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(hoursField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(overtimeLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(overtimeField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(rateLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(rateField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(deductionsLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(deductionsField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(grossLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(grossField, gbc);
-
-        row++;
-        gbc.weightx = 0;
-        gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(netLabel, gbc);
-        gbc.gridx = 1; gbc.weightx = 1.0;
-        formPanel.add(netField, gbc);
-
-        row++;
-        gbc.gridx = 1; gbc.gridy = row;
-        gbc.anchor = GridBagConstraints.EAST;
-        gbc.weightx = 0;
-        formPanel.add(calcButton, gbc);
-
-        // --- Payroll history table filling remaining space ---
-        String[] columnNames = { "Employee ID", "Name", "Period", "Hours", "Overtime", "Rate", "Gross", "Deductions", "Net" };
-        Object[][] data = {};
-        javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(data, columnNames) {
-            @Override
-            public boolean isCellEditable(int r, int c) {
-                return false;
-            }
-        };
-        JTable historyTable = new JTable(model);
-        historyTable.setFillsViewportHeight(true);
-        JScrollPane tableScroll = new JScrollPane(historyTable);
-
-        JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, formPanel, tableScroll);
-        centerSplit.setResizeWeight(0.35); // more space to table
-
-        mainPanel.add(centerSplit, BorderLayout.CENTER);
-
-        calcButton.addActionListener((ActionEvent e) -> {
-            try {
-                double hours = Double.parseDouble(hoursField.getText());
-                double overtime = Double.parseDouble(overtimeField.getText());
-                double rate = Double.parseDouble(rateField.getText());
-                double deductions = Double.parseDouble(deductionsField.getText());
-
-                double gross = hours * rate + overtime * rate * 1.5;
-                double net = gross - deductions;
-
-                grossField.setText(String.format("%.2f", gross));
-                netField.setText(String.format("%.2f", net));
-
-                model.addRow(new Object[]{
-                        idField.getText(),
-                        nameField.getText(),
-                        periodField.getText(),
-                        hours,
-                        overtime,
-                        rate,
-                        String.format("%.2f", gross),
-                        String.format("%.2f", deductions),
-                        String.format("%.2f", net)
-                });
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(frame,
-                        "Please enter valid numbers for hours, overtime, rate and deductions.",
-                        "Input Error",
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        });
-
-        // Wire up left buttons now that model and fields exist
-        newEmployeeBtn.addActionListener((ActionEvent e) -> {
-            idField.setText("");
-            nameField.setText("");
-            hoursField.setText("");
-            overtimeField.setText("0");
-            rateField.setText("");
-            deductionsField.setText("0.00");
-            grossField.setText("");
-            netField.setText("");
-        });
-
-        clearFormBtn.addActionListener(newEmployeeBtn.getActionListeners()[0]);
-
-        removeRowBtn.addActionListener((ActionEvent e) -> {
-            int selected = historyTable.getSelectedRow();
-            if (selected >= 0) {
-                model.removeRow(selected);
-            } else {
-                JOptionPane.showMessageDialog(frame,
-                        "Please select a row in the history table to remove.",
-                        "No Row Selected",
-                        JOptionPane.WARNING_MESSAGE);
-            }
-        });
-
-        exitBtn.addActionListener((ActionEvent e) -> frame.dispose());
-
-        deductionsBtn.addActionListener((ActionEvent e) -> DeductionsPage.open());
-
-        leftButtons.add(Box.createVerticalStrut(5));
-        leftButtons.add(newEmployeeBtn);
-        leftButtons.add(Box.createVerticalStrut(5));
-        leftButtons.add(clearFormBtn);
-        leftButtons.add(Box.createVerticalStrut(5));
-        leftButtons.add(removeRowBtn);
-        leftButtons.add(Box.createVerticalStrut(5));
-        leftButtons.add(deductionsBtn);
-        leftButtons.add(Box.createVerticalGlue());
-        leftButtons.add(exitBtn);
-
-        mainPanel.add(leftButtons, BorderLayout.WEST);
-
-        // Search logic: select first matching row by ID or Name
-        searchButton.addActionListener((ActionEvent e) -> {
-            String query = searchField.getText().trim().toLowerCase();
-            if (query.isEmpty()) {
-                historyTable.clearSelection();
-                return;
-            }
-
-            int idCol = 0;
-            int nameCol = 1;
-            for (int i = 0; i < model.getRowCount(); i++) {
-                Object idVal = model.getValueAt(i, idCol);
-                Object nameVal = model.getValueAt(i, nameCol);
-                String idText = idVal == null ? "" : idVal.toString().toLowerCase();
-                String nameText = nameVal == null ? "" : nameVal.toString().toLowerCase();
-
-                if (idText.contains(query) || nameText.contains(query)) {
-                    historyTable.setRowSelectionInterval(i, i);
-                    historyTable.scrollRectToVisible(historyTable.getCellRect(i, 0, true));
-                    return;
-                }
-            }
-
-            JOptionPane.showMessageDialog(frame,
-                    "No matching records found.",
-                    "Search",
-                    JOptionPane.INFORMATION_MESSAGE);
-        });
-
-        frame.setContentPane(mainPanel);
-        frame.pack();
-        frame.setLocationRelativeTo(null);
+        frame.add(mainPanel);
         frame.setVisible(true);
     }
-}
 
+    // --- PAGE CREATION METHODS ---
+
+    // Your main payroll form
+    private static JPanel createCalculationPage() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.add(new JLabel("Payroll Calculation Form Goes Here", SwingConstants.CENTER));
+        // You would paste your previous form code here
+        return p;
+    }
+
+    // MODIFICATION TIP: Copy this method and rename it to create a specific page (e.g., createDeductionPage)
+    // Then you can add text fields and tables specific to that category.
+    private static JPanel createGenericPage(String title, Color bgColor) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(bgColor);
+        JLabel label = new JLabel(title, SwingConstants.CENTER);
+        label.setFont(new Font("SansSerif", Font.BOLD, 24));
+        p.add(label, BorderLayout.CENTER);
+        return p;
+    }
+
+    // --- UI HELPERS ---
+
+    private static void addNavHeader(JPanel panel, String text) {
+        panel.add(Box.createVerticalStrut(20));
+        JLabel l = new JLabel("  " + text);
+        l.setFont(new Font("SansSerif", Font.BOLD, 10));
+        l.setForeground(new Color(150, 150, 150));
+        panel.add(l);
+        panel.add(Box.createVerticalStrut(5));
+    }
+
+    private static JButton createNavButton(String text) {
+        JButton b = new JButton(text);
+        b.setMaximumSize(new Dimension(200, 40));
+        b.setAlignmentX(Component.CENTER_ALIGNMENT);
+        b.setFocusPainted(false);
+        b.setBackground(new Color(45, 52, 54));
+        b.setForeground(Color.WHITE);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        // Simple hover effect can be added here with a MouseListener if desired
+        return b;
+    }
+}
