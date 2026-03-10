@@ -1,5 +1,7 @@
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 
 public class page {
@@ -187,100 +189,190 @@ public class page {
     }
 
     private static JPanel ProfilePage() {
-        JPanel mainContainer = new JPanel(new BorderLayout(20, 20));
-        mainContainer.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 40));
-        mainContainer.setBackground(Color.WHITE);
+        JPanel main = new JPanel(new BorderLayout(15, 15));
+        main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        main.setBackground(Color.WHITE);
 
-        // Title Section
-        JLabel header = new JLabel("Employee Profile Management");
-        header.setFont(new Font("SansSerif", Font.BOLD, 22));
-        header.setForeground(new Color(45, 52, 54));
-        mainContainer.add(header, BorderLayout.NORTH);
+        // --- 1. TOP SECTION (Search/Filter) ---
+        JPanel topPanel = new JPanel(new BorderLayout(10, 10));
+        topPanel.setOpaque(false);
+        JTextField txtSearch = new JTextField("Search employees...");
+        JComboBox<String> cmbDept = new JComboBox<>(new String[]{"All Departments", "Admin", "IT", "HR", "Sales"});
 
-        // Form Section (Two Columns)
-        JPanel formPanel = new JPanel(new GridLayout(1, 2, 40, 0));
-        formPanel.setOpaque(false);
+        JPanel searchControls = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchControls.setOpaque(false);
+        searchControls.add(new JLabel("Department:"));
+        searchControls.add(cmbDept);
+        searchControls.add(Box.createHorizontalStrut(20));
+        searchControls.add(new JLabel("Search:"));
+        txtSearch.setPreferredSize(new Dimension(250, 30));
+        searchControls.add(txtSearch);
+        topPanel.add(new JLabel("Employee Database Management"), BorderLayout.WEST);
+        topPanel.add(searchControls, BorderLayout.EAST);
 
-        // Left Column: Personal Data
-        JPanel leftCol = createGroupPanel("Personal Details");
-        addLabeledField(leftCol, "First Name:", new JTextField());
-        addLabeledField(leftCol, "Last Name:", new JTextField());
-        addLabeledField(leftCol, "Birth Date:", new JTextField("YYYY-MM-DD"));
-        addLabeledField(leftCol, "Contact Number:", new JTextField());
-        addLabeledField(leftCol, "Email Address:", new JTextField());
+        // --- 2. LEFT SECTION: Individual Employee View + ACTIONS ---
+        JPanel detailPanel = new JPanel(new BorderLayout(0, 10));
+        detailPanel.setPreferredSize(new Dimension(350, 0));
+        detailPanel.setOpaque(false);
 
-        // Right Column: Employment Data
-        JPanel rightCol = createGroupPanel("Employment Details");
-        addLabeledField(rightCol, "Employee ID:", new JTextField());
-        addLabeledField(rightCol, "Department:", new JComboBox<>(new String[]{"Admin", "IT", "HR", "Sales", "Operations"}));
-        addLabeledField(rightCol, "Job Title:", new JTextField());
-        addLabeledField(rightCol, "Date Hired:", new JTextField("2026-03-10"));
-        addLabeledField(rightCol, "Status:", new JComboBox<>(new String[]{"Regular", "Probationary", "Contractual"}));
+        // Toolbar
+        JPanel actionToolbar = new JPanel(new GridLayout(1, 3, 5, 0));
+        actionToolbar.setOpaque(false);
+        JButton btnAdd = new JButton("Add New");
+        JButton btnEdit = new JButton("Update");
+        JButton btnClear = new JButton("Clear");
 
-        formPanel.add(leftCol);
-        formPanel.add(rightCol);
+        // Styling
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnEdit.setBackground(new Color(9, 132, 227)); btnEdit.setForeground(Color.WHITE);
+        btnClear.setBackground(new Color(225, 112, 85)); btnClear.setForeground(Color.WHITE);
 
-        // Footer: Save Button
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        footer.setOpaque(false);
-        JButton btnSave = new JButton("Save Profile");
-        btnSave.setPreferredSize(new Dimension(150, 40));
-        btnSave.setBackground(new Color(0, 184, 148)); // Professional Green
-        btnSave.setForeground(Color.BLACK);
-        btnSave.setFocusPainted(false);
+        actionToolbar.add(btnAdd);
+        actionToolbar.add(btnEdit);
+        actionToolbar.add(btnClear);
 
-        btnSave.addActionListener(e -> {
-            JOptionPane.showMessageDialog(btnSave, "Employee Profile Saved Successfully!",
-                    "Success", JOptionPane.INFORMATION_MESSAGE);
+        // Form Fields (Only declare this ONCE)
+        JPanel formFields = createGroupPanel("Employee Details");
+        JTextField fId = new JTextField();
+        JTextField fName = new JTextField();
+        JTextField fDept = new JTextField();
+        JTextField fPos = new JTextField();
+        JTextField fRole = new JTextField();
+
+        addLabeledField(formFields, "ID:", fId);
+        addLabeledField(formFields, "Name:", fName);
+        addLabeledField(formFields, "Department:", fDept);
+        addLabeledField(formFields, "Position:", fPos);
+        addLabeledField(formFields, "Role:", fRole);
+
+        detailPanel.add(actionToolbar, BorderLayout.NORTH);
+        detailPanel.add(formFields, BorderLayout.CENTER);
+
+        // --- 3. RIGHT SECTION: The Employee List ---
+        String[] columns = {"ID", "Name", "Department", "Position", "Status"};
+        Object[][] data = {
+                {"EMP-001", "Jesse Ulbenario", "IT", "Lead", "Active"},
+                {"EMP-002", "Jane Smith", "HR", "Manager", "Active"},
+                {"EMP-003", "John Doe", "Sales", "Associate", "On Leave"}
+        };
+        DefaultTableModel tableModel = new DefaultTableModel(data, columns);
+        JTable employeeTable = new JTable(tableModel);
+        JScrollPane scrollPane = new JScrollPane(employeeTable);
+
+        // --- 4. THE MAGIC: LINKING TABLE TO FORM ---
+        employeeTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && employeeTable.getSelectedRow() != -1) {
+                int row = employeeTable.getSelectedRow();
+                // Convert index in case the table is sorted
+                int modelRow = employeeTable.convertRowIndexToModel(row);
+
+                fId.setText(tableModel.getValueAt(modelRow, 0).toString());
+                fName.setText(tableModel.getValueAt(modelRow, 1).toString());
+                fDept.setText(tableModel.getValueAt(modelRow, 2).toString());
+                fPos.setText(tableModel.getValueAt(modelRow, 3).toString());
+            }
         });
 
-        footer.add(btnSave);
+        // Clear Logic
+        btnClear.addActionListener(e -> {
+            fId.setText(""); fName.setText(""); fDept.setText(""); fPos.setText(""); fRole.setText("");
+            employeeTable.clearSelection();
+        });
 
-        mainContainer.add(formPanel, BorderLayout.CENTER);
-        mainContainer.add(footer, BorderLayout.SOUTH);
+        // Final Assembly
+        main.add(topPanel, BorderLayout.NORTH);
+        main.add(detailPanel, BorderLayout.WEST);
+        main.add(scrollPane, BorderLayout.CENTER);
 
-        return mainContainer;
+        return main;
     }
 
     private static JPanel DeductionPage() {
-        JPanel main = new JPanel(new BorderLayout(20, 20));
-        main.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 40));
-        main.setBackground(new Color(250, 251, 252)); // Slightly off-white
+        JPanel main = new JPanel(new BorderLayout(15, 15));
+        main.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
+        main.setBackground(new Color(245, 246, 247));
+
+        // --- 1. NORTH: HEADER & CASH ADVANCE TOOLBAR ---
+        JPanel northPanel = new JPanel(new BorderLayout());
+        northPanel.setOpaque(false);
 
         JLabel header = new JLabel("Deductions Management");
         header.setFont(new Font("SansSerif", Font.BOLD, 22));
-        main.add(header, BorderLayout.NORTH);
 
-        // Form for adding a new deduction
+        // The "Add Advance" Button
+        JButton btnAdvance = new JButton("+ Add Cash Advance");
+        btnAdvance.setBackground(new Color(0, 184, 148)); // Green to signify adding funds/action
+        btnAdvance.setForeground(Color.WHITE);
+        btnAdvance.setFocusPainted(false);
+
+        northPanel.add(header, BorderLayout.WEST);
+        northPanel.add(btnAdvance, BorderLayout.EAST);
+
+        // --- 2. CENTER: FIXED DEDUCTION FORM ---
+        JPanel centerPanel = new JPanel(new BorderLayout(0, 20));
+        centerPanel.setOpaque(false);
+
         JPanel inputPanel = createGroupPanel("Fixed Monthly Deductions");
         addLabeledField(inputPanel, "Government Tax (%):", new JTextField());
         addLabeledField(inputPanel, "Health Insurance:", new JTextField());
         addLabeledField(inputPanel, "Social Security:", new JTextField());
+        addLabeledField(inputPanel, "Mortgage/Housing Loan:", new JTextField());
         addLabeledField(inputPanel, "Other Loan Deductions:", new JTextField());
 
         JButton btnUpdate = new JButton("Update Deduction Rates");
-        btnUpdate.setBackground(new Color(45, 52, 54));
+        btnUpdate.setBackground(new Color(4, 7, 14));
         btnUpdate.setForeground(Color.WHITE);
 
-        // Using a wrapper to keep the button from stretching
         JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         btnWrapper.setOpaque(false);
         btnWrapper.add(btnUpdate);
-        inputPanel.add(btnWrapper); // GridBagLayout will handle this via the helper
+        inputPanel.add(btnWrapper);
 
-        // Bottom Section: A Table to show history or current settings
+        // History Table
         String[] cols = {"Type", "Amount/Rate", "Effective Date", "Status"};
         Object[][] data = {
                 {"Income Tax", "12%", "2026-01-01", "Active"},
-                {"Health Fund", "500.00", "2026-01-01", "Active"}
+                {"Health Fund", "500.00", "2026-01-01", "Active"},
+                {"Housing Loan", "2,500.00", "2026-02-15", "Active"}
         };
         JTable table = new JTable(new javax.swing.table.DefaultTableModel(data, cols));
+        JScrollPane tableScroll = new JScrollPane(table);
+        tableScroll.setPreferredSize(new Dimension(0, 200));
 
-        main.add(inputPanel, BorderLayout.CENTER);
-        main.add(new JScrollPane(table), BorderLayout.SOUTH);
+        centerPanel.add(inputPanel, BorderLayout.NORTH);
+        centerPanel.add(tableScroll, BorderLayout.CENTER);
+
+        // --- 3. SOUTH: THE "EXCEL" STATUS BAR (TOTALS) ---
+        JPanel summaryBar = new JPanel(new GridLayout(1, 4, 10, 0));
+        summaryBar.setBackground(new Color(45, 52, 54)); // Dark background like a status bar
+        summaryBar.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+
+        // Summary Labels
+        summaryBar.add(createSummaryLabel("Gov't Total: $450.00"));
+        summaryBar.add(createSummaryLabel("Loans/Mortgage: $2,500.00"));
+        summaryBar.add(createSummaryLabel("Advances: $1,200.00"));
+        summaryBar.add(createSummaryLabel("TOTAL DEDUCTIONS: $4,150.00", Color.YELLOW));
+
+        // Assemble
+        main.add(northPanel, BorderLayout.NORTH);
+        main.add(centerPanel, BorderLayout.CENTER);
+        main.add(summaryBar, BorderLayout.SOUTH);
 
         return main;
     }
+
+    // Helper for the Status Bar Labels
+    private static JLabel createSummaryLabel(String text) {
+        return createSummaryLabel(text, Color.WHITE);
+    }
+
+    private static JLabel createSummaryLabel(String text, Color textColor) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("SansSerif", Font.BOLD, 13));
+        label.setForeground(textColor);
+        return label;
+    }
+
     private static JPanel CompPage() {
         JPanel main = new JPanel(new BorderLayout(20, 20));
         main.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 40));
@@ -309,5 +401,4 @@ public class page {
         main.add(centerPanel, BorderLayout.CENTER);
         return main;
     }
-
 }
