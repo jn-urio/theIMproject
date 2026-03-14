@@ -6,8 +6,11 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Time;
+import java.io.File;
 import java.text.DecimalFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class page {
     private static CardLayout cardLayout = new CardLayout();
@@ -44,6 +47,15 @@ public class page {
         leftPanel.setBackground(DARK_OLIVE);
         leftPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, DARK_BROWN));
 
+        // Logo at top left (same as LoginPage)
+        JLabel logoLabel = new JLabel();
+        logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        ImageIcon logoIcon = loadLogo("elements/RanchoLogo.jpg", 180);
+        if (logoIcon != null) logoLabel.setIcon(logoIcon);
+        leftPanel.add(Box.createVerticalStrut(12));
+        leftPanel.add(logoLabel);
+        leftPanel.add(Box.createVerticalStrut(12));
+
         String[] nav = { "Employee", "Deductions", "Compensation" };
         JButton[] buttons = new JButton[nav.length + 1];
         for (int i = 0; i < nav.length; i++) {
@@ -70,6 +82,20 @@ public class page {
         mainPanel.add(cardPanel, BorderLayout.CENTER);
         frame.add(mainPanel);
         frame.setVisible(true);
+    }
+
+    /** Loads and scales the sidebar logo (elements/RanchoLogo.jpg). Returns null if file missing or unreadable. */
+    private static ImageIcon loadLogo(String path, int maxWidth) {
+        File file = new File(path);
+        if (!file.exists()) return null;
+        ImageIcon icon = new ImageIcon(path);
+        Image img = icon.getImage();
+        if (img.getWidth(null) <= 0) return null;
+        int w = img.getWidth(null);
+        int h = img.getHeight(null);
+        int newH = (maxWidth * h) / w;
+        Image scaled = img.getScaledInstance(maxWidth, newH, Image.SCALE_SMOOTH);
+        return new ImageIcon(scaled);
     }
 
     private static JButton createNavButton(String text) {
@@ -110,6 +136,15 @@ public class page {
         gbc.gridy++;
     }
 
+    /** Like addLabeledField but reuses gbc so rows stack (gridy advances). */
+    private static void addLabeledField(JPanel panel, String labelText, JComponent comp, GridBagConstraints gbc) {
+        gbc.gridx = 0; gbc.weightx = 0;
+        panel.add(new JLabel(labelText), gbc);
+        gbc.gridx = 1; gbc.weightx = 1.0;
+        panel.add(comp, gbc);
+        gbc.gridy++;
+    }
+
     private static void refreshTable(DefaultTableModel model, String[] columns, List<?> rows, RowMapper mapper) {
         model.setRowCount(0);
         model.setColumnIdentifiers(columns);
@@ -117,6 +152,168 @@ public class page {
     }
 
     private interface RowMapper { Object[] toRow(Object o); }
+
+    /**
+     * Opens the Full Employee Information dialog for the given employee.
+     * Shows read-only fields (ID, code, name, legal/SSS) and editable fields (dept, position, pay, active).
+     * Save button updates only the editable fields. Add/Register new employee is a placeholder for the next developer.
+     *
+     * @param parent       parent frame for the dialog
+     * @param employeeId   selected employee ID (from table)
+     * @param onSaved      optional callback to refresh the employee list after save (can be null)
+     */
+    /**
+     * Placeholder for "Add new employee" / registration. Next developer: implement a form (name, code, department,
+     * position, basic salary, etc.) and persist via EmployeeDao (and related tables). This dialog only informs the user.
+     */
+    private static void showAddNewEmployeePlaceholder(Component parent) {
+        JOptionPane.showMessageDialog(parent,
+            "Add new employee is not yet implemented.\n\nNext developer: add a registration form and call EmployeeDao (and related tables) to insert the new employee.",
+            "Add new employee",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * Placeholder for configuring government/statutory deduction rates (SSS, PhilHealth, PagIBIG).
+     * Next developer: implement a dialog or form to edit and persist rates (e.g. DB table or config file),
+     * and use those rates when computing or displaying statutory deductions.
+     */
+    private static void showStatutoryRatesPlaceholder(Component parent) {
+        JOptionPane.showMessageDialog(parent,
+            "Configure statutory rates is not yet implemented.\n\nNext developer: add a screen to edit and save SSS, PhilHealth, and PagIBIG rates (e.g. in a table or config), and apply them when computing statutory deductions.",
+            "Configure statutory rates",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private static void showFullEmployeeInfoDialog(Window parent, int employeeId, Runnable onSaved) {
+        JDialog dlg = new JDialog(parent, "Full Employee Information", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.setLayout(new BorderLayout(10, 10));
+        dlg.getContentPane().setBackground(Color.WHITE);
+        JPanel center = new JPanel(new GridBagLayout());
+        center.setBackground(Color.WHITE);
+        GridBagConstraints g = new GridBagConstraints();
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.insets = new Insets(4, 8, 4, 8);
+        g.gridy = 0;
+        g.weightx = 0;
+
+        // ----- Read-only: do not allow editing name, code, or legal identifiers (e.g. SSS). -----
+        JTextField fId = new JTextField(14);
+        fId.setEditable(false);
+        JTextField fCode = new JTextField(14);
+        fCode.setEditable(false);
+        JTextField fName = new JTextField(14);
+        fName.setEditable(false);
+        // TODO (next developer): If SSS number or other legal IDs are added to schema, show here as read-only.
+        JTextField fSss = new JTextField(14);
+        fSss.setEditable(false);
+        fSss.setText("—"); // Placeholder until SSS/legal ID is in DB.
+
+        addLabeledField(center, "ID:", fId, g);
+        addLabeledField(center, "Code:", fCode, g);
+        addLabeledField(center, "Name:", fName, g);
+        addLabeledField(center, "SSS / Legal ID:", fSss, g);
+
+        // ----- Editable: only these fields should be updated by Save. -----
+        JComboBox<String> fDept = new JComboBox<>();
+        JComboBox<PositionDao.Position> fPos = new JComboBox<>();
+        JTextField fBasic = new JTextField(14);
+        JTextField fDaily = new JTextField(14);
+        JTextField fHourly = new JTextField(14);
+        JCheckBox fActive = new JCheckBox("Active", true);
+        addLabeledField(center, "Department:", fDept, g);
+        addLabeledField(center, "Position:", fPos, g);
+        addLabeledField(center, "Basic salary:", fBasic, g);
+        addLabeledField(center, "Daily rate:", fDaily, g);
+        addLabeledField(center, "Hourly rate:", fHourly, g);
+        g.gridx = 0;
+        g.gridwidth = 2;
+        g.weightx = 0;
+        center.add(fActive, g);
+
+        // Load depts and positions for combos
+        try {
+            fDept.addItem("");
+            for (DepartmentDao.Department d : DepartmentDao.findAll()) fDept.addItem(d.departmentName);
+            fPos.addItem(null);
+            for (PositionDao.Position p : PositionDao.findAll()) fPos.addItem(p);
+        } catch (SQLException ex) { /* DB unavailable */ }
+
+        // Load current employee data
+        try {
+            EmployeeDao.Employee emp = EmployeeDao.findById(employeeId);
+            if (emp != null) {
+                fId.setText(String.valueOf(emp.employeeId));
+                fCode.setText(emp.employeeCode);
+                fName.setText(emp.fullName);
+                fBasic.setText(emp.basicSalary != null ? emp.basicSalary.toPlainString() : "");
+                fDaily.setText(emp.dailyRate != null ? emp.dailyRate.toPlainString() : "");
+                fHourly.setText(emp.hourlyRate != null ? emp.hourlyRate.toPlainString() : "");
+                fActive.setSelected(emp.isActive);
+            }
+            EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(employeeId);
+            if (role != null && role.departmentName != null) fDept.setSelectedItem(role.departmentName);
+            if (role != null) {
+                Integer posId = RegUserDao.getPositionIdForRole(role.employeeRoleId);
+                if (posId != null) {
+                    for (int i = 0; i < fPos.getItemCount(); i++) {
+                        PositionDao.Position p = fPos.getItemAt(i);
+                        if (p != null && p.positionId == posId) { fPos.setSelectedIndex(i); break; }
+                    }
+                }
+            }
+        } catch (SQLException ex) { /* DB unavailable */ }
+
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
+        south.setBackground(Color.WHITE);
+        JButton btnSave = new JButton("Save");
+        btnSave.setBackground(new Color(9, 132, 227));
+        btnSave.setForeground(Color.WHITE);
+        JButton btnClose = new JButton("Close");
+        // Add/Register new employee: button only; implementation left for next developer.
+        JButton btnAddNew = new JButton("Add / Register new employee");
+        btnAddNew.setBackground(GOLDEN);
+        btnAddNew.setForeground(DARK_BROWN);
+        btnAddNew.setToolTipText("Not yet implemented. Add logic to insert new employee and optionally register as user.");
+
+        btnSave.addActionListener(e -> {
+            try {
+                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
+                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
+                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
+                EmployeeDao.update(employeeId, fCode.getText(), fName.getText(), basic, daily, hourly, fActive.isSelected());
+                EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(employeeId);
+                if (role != null) {
+                    String deptName = (String) fDept.getSelectedItem();
+                    if (deptName != null && !deptName.isEmpty()) {
+                        int deptId = -1;
+                        for (DepartmentDao.Department d : DepartmentDao.findAll()) {
+                            if (deptName.equals(d.departmentName)) { deptId = d.departmentId; break; }
+                        }
+                        if (deptId >= 0) EmployeeRoleDao.ensureActiveRole(employeeId, deptId, role.roleType != null ? role.roleType : "hr");
+                    }
+                    PositionDao.Position pos = (PositionDao.Position) fPos.getSelectedItem();
+                    RegUserDao.upsertPositionForRole(role.employeeRoleId, pos != null ? pos.positionId : null);
+                }
+                if (onSaved != null) onSaved.run();
+                JOptionPane.showMessageDialog(dlg, "Saved.");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dlg, "Save failed: " + ex.getMessage());
+            }
+        });
+        btnClose.addActionListener(e -> dlg.dispose());
+        // TODO (next developer): Implement Add/Register new employee — insert into Employee (and optionally HRUser).
+        btnAddNew.addActionListener(e -> JOptionPane.showMessageDialog(dlg, "Add/Register new employee is not yet implemented. Please add logic to insert a new employee and optionally register as system user."));
+
+        south.add(btnAddNew);
+        south.add(btnSave);
+        south.add(btnClose);
+        dlg.add(new JScrollPane(center), BorderLayout.CENTER);
+        dlg.add(south, BorderLayout.SOUTH);
+        dlg.pack();
+        dlg.setLocationRelativeTo(parent);
+        dlg.setVisible(true);
+    }
 
     // ===================== HUB PAGES (requested buttons) =====================
     private static JPanel buildEmployeeHubPage() {
@@ -243,6 +440,7 @@ public class page {
     private static JPanel buildCompensationHubPage() { return buildCompensationPage(); }
 
     // --- Employees (Core: Employee + Department from EmployeeRole) ---
+    // Employee button: opens a menu with (1) Full employee information, (2) Add new employee, (3) Export DTR. See action bar and showAddNewEmployeePlaceholder / showFullEmployeeInfoDialog for extension points.
     private static JPanel buildEmployeesPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -266,52 +464,58 @@ public class page {
         topWrap.add(top, BorderLayout.EAST);
         main.add(topWrap, BorderLayout.NORTH);
 
+        // ----- Attendance-only panel: selected employee + date + status. Full details in separate dialog. -----
         JPanel detail = new JPanel(new BorderLayout());
-        detail.setPreferredSize(new Dimension(340, 0));
+        detail.setPreferredSize(new Dimension(300, 0));
         detail.setOpaque(false);
-        JPanel form = createGroupPanel("Employee Details");
-        JTextField fId = new JTextField();
-        JTextField fCode = new JTextField();
-        JTextField fName = new JTextField();
-        JTextField fBasic = new JTextField();
-        JTextField fDaily = new JTextField();
-        JTextField fHourly = new JTextField();
-        JComboBox<String> fDept = new JComboBox<>();
-        JComboBox<PositionDao.Position> fPos = new JComboBox<>();
-        JTextField fRole = new JTextField();
-        fRole.setEditable(false);
+        JPanel attPanel = createGroupPanel("Attendance");
+        JLabel lblSelected = new JLabel("Select an employee from the table.");
+        lblSelected.setForeground(MEDIUM_GREY);
         JTextField fAttendanceDate = new JTextField(10);
         fAttendanceDate.setText(java.time.LocalDate.now().toString());
         JComboBox<String> fAttendance = new JComboBox<>(new String[]{"Present", "Late", "Absent"});
         fAttendance.setSelectedItem("Present");
-        JCheckBox fActive = new JCheckBox("Active", true);
-        addLabeledField(form, "ID:", fId);
-        addLabeledField(form, "Code:", fCode);
-        addLabeledField(form, "Name:", fName);
-        addLabeledField(form, "Role:", fRole);
-        addLabeledField(form, "Department:", fDept);
-        addLabeledField(form, "Position:", fPos);
-        addLabeledField(form, "Attendance date:", fAttendanceDate);
-        addLabeledField(form, "Attendance:", fAttendance);
-        addLabeledField(form, "Basic salary:", fBasic);
-        addLabeledField(form, "Daily rate:", fDaily);
-        addLabeledField(form, "Hourly rate:", fHourly);
-        form.add(fActive);
-        JPanel actBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        GridBagConstraints gbcAtt = new GridBagConstraints();
+        gbcAtt.fill = GridBagConstraints.HORIZONTAL;
+        gbcAtt.insets = new Insets(6, 5, 6, 5);
+        gbcAtt.gridy = 0;
+        gbcAtt.weightx = 0;
+        gbcAtt.gridwidth = 2;
+        gbcAtt.gridx = 0;
+        attPanel.add(lblSelected, gbcAtt);
+        gbcAtt.gridy++;
+        gbcAtt.gridwidth = 1;
+        addLabeledField(attPanel, "Date:", fAttendanceDate, gbcAtt);
+        addLabeledField(attPanel, "Status:", fAttendance, gbcAtt);
+
+        // Hold selected employee id/name for attendance and export (updated when table selection changes).
+        final int[] selectedEmployeeId = { -1 };
+        final String[] selectedEmployeeName = { "" };
+
+        // ----- Employee action bar: these buttons expose the main employee functions for the next developer. -----
+        // • Full employee information: view/edit selected employee (department, position, salary, active). Opens dialog with Save and Add/Register.
+        // • Add new employee: placeholder for implementing employee registration/insert (see handler below).
+        // • Export DTR: export selected employee's DTR to CSV.
+        JPanel actBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
         actBar.setOpaque(false);
-        JButton btnAdd = new JButton("Add");
-        JButton btnUpdate = new JButton("Update");
-        JButton btnClear = new JButton("Clear");
-        JButton btnRegisterUser = new JButton("Register User");
-        JButton btnExportDTR = new JButton("Export DTR to CSV");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
-        btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(Color.WHITE);
-        btnClear.setBackground(new Color(225, 112, 85)); btnClear.setForeground(Color.WHITE);
-        btnRegisterUser.setBackground(new Color(99, 110, 114)); btnRegisterUser.setForeground(Color.WHITE);
-        btnExportDTR.setBackground(GOLDEN); btnExportDTR.setForeground(DARK_BROWN);
-        actBar.add(btnAdd); actBar.add(btnUpdate); actBar.add(btnClear); actBar.add(btnRegisterUser); actBar.add(btnExportDTR);
+        JButton btnEmployee = new JButton("Employee");
+        btnEmployee.setBackground(DARK_OLIVE);
+        btnEmployee.setForeground(Color.WHITE);
+        JButton btnFullInfo = new JButton("Full employee information");
+        JButton btnAddNewEmployee = new JButton("Add new employee");
+        JButton btnExportDTR = new JButton("Export DTR");
+        btnFullInfo.setBackground(new Color(9, 132, 227));
+        btnFullInfo.setForeground(Color.WHITE);
+        btnAddNewEmployee.setBackground(SAGE);
+        btnAddNewEmployee.setForeground(DARK_BROWN);
+        btnExportDTR.setBackground(GOLDEN);
+        btnExportDTR.setForeground(DARK_BROWN);
+        actBar.add(btnEmployee);
+        actBar.add(btnFullInfo);
+        actBar.add(btnAddNewEmployee);
+        actBar.add(btnExportDTR);
         detail.add(actBar, BorderLayout.NORTH);
-        detail.add(form, BorderLayout.CENTER);
+        detail.add(attPanel, BorderLayout.CENTER);
 
         String[] cols = {"ID", "Code", "Name", "Department", "Basic", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
@@ -324,17 +528,6 @@ public class page {
                 cmbDept.addItem("All Departments");
                 for (DepartmentDao.Department d : DepartmentDao.findAll())
                     cmbDept.addItem(d.departmentName);
-                fDept.removeAllItems();
-                fDept.addItem("");
-                for (DepartmentDao.Department d : DepartmentDao.findAll())
-                    fDept.addItem(d.departmentName);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
-        Runnable loadPositions = () -> {
-            try {
-                fPos.removeAllItems();
-                fPos.addItem(null);
-                for (PositionDao.Position p : PositionDao.findAll()) fPos.addItem(p);
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadEmployees = () -> {
@@ -349,136 +542,77 @@ public class page {
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadDepts.run();
-        loadPositions.run();
         loadEmployees.run();
 
+        // When user selects a row: update selected employee id/name, label, and attendance for that date.
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting() || table.getSelectedRow() < 0) return;
             int row = table.convertRowIndexToModel(table.getSelectedRow());
             Integer id = (Integer) tblModel.getValueAt(row, 0);
+            String name = tblModel.getValueAt(row, 2) != null ? tblModel.getValueAt(row, 2).toString() : "";
             if (id == null) return;
+            selectedEmployeeId[0] = id;
+            selectedEmployeeName[0] = name;
+            lblSelected.setText("Selected: " + (name.isEmpty() ? "ID " + id : name));
             try {
-                EmployeeDao.Employee emp = EmployeeDao.findById(id);
-                if (emp != null) {
-                    fId.setText(String.valueOf(emp.employeeId));
-                    fCode.setText(emp.employeeCode);
-                    fName.setText(emp.fullName);
-                    fBasic.setText(emp.basicSalary != null ? emp.basicSalary.toPlainString() : "");
-                    fDaily.setText(emp.dailyRate != null ? emp.dailyRate.toPlainString() : "");
-                    fHourly.setText(emp.hourlyRate != null ? emp.hourlyRate.toPlainString() : "");
-                    fActive.setSelected(emp.isActive);
-                }
-                EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(id);
-                fRole.setText(role != null && role.roleType != null ? role.roleType : "");
-                if (role != null && role.departmentName != null)
-                    fDept.setSelectedItem(role.departmentName);
-                if (role != null) {
-                    Integer posId = RegUserDao.getPositionIdForRole(role.employeeRoleId);
-                    if (posId != null) {
-                        for (int i = 0; i < fPos.getItemCount(); i++) {
-                            PositionDao.Position p = fPos.getItemAt(i);
-                            if (p != null && p.positionId == posId) { fPos.setSelectedIndex(i); break; }
-                        }
-                    } else {
-                        fPos.setSelectedItem(null);
-                    }
-                }
-                // Load attendance for selected date (default Present)
-                try {
-                    java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
-                    String status = DTRDao.getStatusForDate(id, attDate);
-                    if (status != null && (status.equals("Present") || status.equals("Late") || status.equals("Absent")))
-                        fAttendance.setSelectedItem(status);
-                    else
-                        fAttendance.setSelectedItem("Present");
-                } catch (Exception ignored) {
+                java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
+                String status = DTRDao.getStatusForDate(id, attDate);
+                if (status != null && (status.equals("Present") || status.equals("Late") || status.equals("Absent")))
+                    fAttendance.setSelectedItem(status);
+                else
                     fAttendance.setSelectedItem("Present");
-                }
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
+            } catch (Exception ignored) {
+                fAttendance.setSelectedItem("Present");
+            }
         });
 
+        // Changing attendance status saves for the selected employee and date.
         fAttendance.addActionListener(ev -> {
-            if (fId.getText().trim().isEmpty()) return;
+            if (selectedEmployeeId[0] < 0) return;
             try {
-                int empId = Integer.parseInt(fId.getText().trim());
                 java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
                 String status = (String) fAttendance.getSelectedItem();
-                if (status != null) DTRDao.setAttendanceStatus(empId, attDate, status);
+                if (status != null) DTRDao.setAttendanceStatus(selectedEmployeeId[0], attDate, status);
             } catch (Exception ignored) { }
         });
 
+        // "Employee" button: shows a menu of the main employee functions (for discoverability).
+        JPopupMenu employeeMenu = new JPopupMenu();
+        JMenuItem miFullInfo = new JMenuItem("Full employee information");
+        JMenuItem miAddNew = new JMenuItem("Add new employee");
+        JMenuItem miExportDTR = new JMenuItem("Export DTR");
+        employeeMenu.add(miFullInfo);
+        employeeMenu.add(miAddNew);
+        employeeMenu.add(miExportDTR);
+        btnEmployee.addActionListener(e -> employeeMenu.show(btnEmployee, 0, btnEmployee.getHeight()));
+
+        // Full employee information: opens dialog with read-only (name, code, legal ID) and editable (dept, position, pay). Save + Add/Register button.
+        Runnable openFullInfo = () -> {
+            if (selectedEmployeeId[0] < 0) {
+                JOptionPane.showMessageDialog(main, "Select an employee from the table first.");
+                return;
+            }
+            Window win = SwingUtilities.windowForComponent(main);
+            showFullEmployeeInfoDialog(win != null ? win : new JFrame(), selectedEmployeeId[0], loadEmployees);
+        };
+        btnFullInfo.addActionListener(e -> openFullInfo.run());
+        miFullInfo.addActionListener(e -> openFullInfo.run());
+
+        // Add new employee: placeholder for next developer. Implement employee insert/registration (e.g. open a form and call EmployeeDao.insert).
+        btnAddNewEmployee.addActionListener(e -> showAddNewEmployeePlaceholder(main));
+        miAddNew.addActionListener(e -> showAddNewEmployeePlaceholder(main));
+
         btnExportDTR.addActionListener(e -> {
-            if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
-            try {
-                int empId = Integer.parseInt(fId.getText().trim());
-                ReportExporter.exportDTRToCsv(main, empId, fName.getText().trim(), null);
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, "Select an employee first."); }
+            if (selectedEmployeeId[0] < 0) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
+            ReportExporter.exportDTRToCsv(main, selectedEmployeeId[0], selectedEmployeeName[0], null);
+        });
+        miExportDTR.addActionListener(e -> {
+            if (selectedEmployeeId[0] < 0) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
+            ReportExporter.exportDTRToCsv(main, selectedEmployeeId[0], selectedEmployeeName[0], null);
         });
 
         btnRefresh.addActionListener(e -> { loadDepts.run(); loadEmployees.run(); });
         txtSearch.addActionListener(e -> loadEmployees.run());
-        btnClear.addActionListener(e -> {
-            fId.setText(""); fCode.setText(""); fName.setText(""); fRole.setText("");
-            fAttendanceDate.setText(java.time.LocalDate.now().toString());
-            fAttendance.setSelectedItem("Present");
-            fBasic.setText(""); fDaily.setText(""); fHourly.setText(""); fActive.setSelected(true);
-            table.clearSelection();
-        });
-        btnAdd.addActionListener(e -> {
-            try {
-                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
-                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
-                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
-                EmployeeDao.insert(fCode.getText().trim(), fName.getText().trim(), basic, daily, hourly, fActive.isSelected());
-                loadEmployees.run();
-                btnClear.doClick();
-            } catch (Exception ex) { /* database unavailable - show empty data */ }
-        });
-        btnUpdate.addActionListener(e -> {
-            if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
-            try {
-                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
-                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
-                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
-                EmployeeDao.update(Integer.parseInt(fId.getText()), fCode.getText().trim(), fName.getText().trim(), basic, daily, hourly, fActive.isSelected());
-                EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(Integer.parseInt(fId.getText()));
-                if (role != null) {
-                    PositionDao.Position pos = (PositionDao.Position) fPos.getSelectedItem();
-                    RegUserDao.upsertPositionForRole(role.employeeRoleId, pos != null ? pos.positionId : null);
-                }
-                loadEmployees.run();
-            } catch (Exception ex) { /* database unavailable - show empty data */ }
-        });
-
-        btnRegisterUser.addActionListener(e -> {
-            if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
-            String deptName = (String) fDept.getSelectedItem();
-            if (deptName == null || deptName.trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select a department for the employee role."); return; }
-            try {
-                // Lookup department id
-                int deptId = -1;
-                for (DepartmentDao.Department d : DepartmentDao.findAll()) {
-                    if (deptName.equals(d.departmentName)) { deptId = d.departmentId; break; }
-                }
-                if (deptId < 0) { JOptionPane.showMessageDialog(main, "Invalid department."); return; }
-                int empId = Integer.parseInt(fId.getText().trim());
-                int roleId = EmployeeRoleDao.ensureActiveRole(empId, deptId, "hr");
-
-                JTextField u = new JTextField();
-                JPasswordField p = new JPasswordField();
-                JComboBox<String> r = new JComboBox<>(new String[]{"user", "admin"});
-                int res = JOptionPane.showConfirmDialog(main, new Object[]{
-                    "Username:", u,
-                    "Password:", p,
-                    "Role:", r
-                }, "Register User (admin only)", JOptionPane.OK_CANCEL_OPTION);
-                if (res != JOptionPane.OK_OPTION) return;
-                HRUserDao.createUser(roleId, (String) r.getSelectedItem(), u.getText().trim(), new String(p.getPassword()));
-                JOptionPane.showMessageDialog(main, "User registered.");
-            } catch (Exception ex) {
-                /* database unavailable - show empty data */
-            }
-        });
 
         main.add(detail, BorderLayout.WEST);
         main.add(scroll, BorderLayout.CENTER);
@@ -877,7 +1011,8 @@ public class page {
         return main;
     }
 
-    // --- Deductions (Loan, Cash Advance, Other) ---
+    // --- Deductions: table shows statutory (SSS, PhilHealth, PagIBIG) and other deductions as columns; Add form for one-off entries. ---
+    // Next developer: statutory/government rates can be edited via "Configure statutory rates" (placeholder dialog to implement).
     private static JPanel buildDeductionsPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -887,8 +1022,11 @@ public class page {
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export report to CSV");
+        JButton btnStatutoryRates = new JButton("Configure statutory rates");
         btnExport.setBackground(new Color(0, 102, 204));
         btnExport.setForeground(Color.WHITE);
+        btnStatutoryRates.setBackground(GOLDEN);
+        btnStatutoryRates.setForeground(DARK_BROWN);
         JTextField txtEmployeeId = new JTextField(8);
         Integer sessionEmpId = AppSession.getEmployeeId();
         txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
@@ -901,8 +1039,10 @@ public class page {
         top.add(txtEmployeeId);
         top.add(btnRefresh);
         top.add(btnExport);
+        top.add(btnStatutoryRates);
 
-        String[] cols = {"ID", "Employee", "Period", "Type", "Amount", "Status"};
+        // Table columns: statutory and government deductions (SSS, PhilHealth, PagIBIG) plus Loan, Cash Advance, Other — no Type dropdown in table.
+        String[] cols = {"Employee", "Period", "SSS", "PhilHealth", "PagIBIG", "Loan", "Cash Advance", "Other", "Total"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
         JScrollPane scroll = new JScrollPane(table);
@@ -911,6 +1051,7 @@ public class page {
         JTextField fEmpId = new JTextField(6);
         JTextField fAmount = new JTextField(10);
         JTextField fDesc = new JTextField(20);
+        // Type dropdown for one-off entries; statutory amounts also appear in the table when present in DB.
         JComboBox<String> fType = new JComboBox<>(new String[]{"SSS","PhilHealth","PagIBIG","Loan","Cash Advance","Other","Tax","Insurance","Savings"});
         fType.setEditable(true);
         addLabeledField(form, "Employee ID:", fEmpId);
@@ -929,17 +1070,46 @@ public class page {
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
+        // Load deductions and group by employee+period; show one row per employee with statutory (SSS, PhilHealth, PagIBIG) and other columns.
         Runnable loadDed = () -> {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-                Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
+                Integer empId = null;
+                if (!txtEmployeeId.getText().trim().isEmpty()) {
+                    try { empId = Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) { }
+                }
                 if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
                 List<DeductionDao.DeductionRow> list = DeductionDao.findByPeriodAndEmployee(periodId, empId);
-                refreshTable(tblModel, cols, list, o -> {
-                    DeductionDao.DeductionRow r = (DeductionDao.DeductionRow) o;
-                    return new Object[]{ r.deductionId, r.fullName, r.payrollPeriodId, r.deductionType, r.amount != null ? MONEY.format(r.amount) : "", r.status };
-                });
+                Map<String, Map<String, BigDecimal>> byKey = new LinkedHashMap<>();
+                for (DeductionDao.DeductionRow r : list) {
+                    String key = r.employeeId + "\t" + r.fullName + "\t" + r.payrollPeriodId;
+                    byKey.computeIfAbsent(key, k -> new LinkedHashMap<>());
+                    String type = r.deductionType != null ? r.deductionType.trim() : "Other";
+                    BigDecimal val = r.amount != null ? r.amount : BigDecimal.ZERO;
+                    Map<String, BigDecimal> rowAmt = byKey.get(key);
+                    rowAmt.put(type, rowAmt.getOrDefault(type, BigDecimal.ZERO).add(val));
+                }
+                tblModel.setRowCount(0);
+                for (Map.Entry<String, Map<String, BigDecimal>> e : byKey.entrySet()) {
+                    String[] parts = e.getKey().split("\t", 3);
+                    String name = parts.length >= 2 ? parts[1] : "";
+                    String periodStr = parts.length >= 3 ? parts[2] : (periodId != null ? String.valueOf(periodId) : "");
+                    Map<String, BigDecimal> amt = e.getValue();
+                    BigDecimal sss = amt.getOrDefault("SSS", BigDecimal.ZERO);
+                    BigDecimal ph = amt.getOrDefault("PhilHealth", BigDecimal.ZERO);
+                    BigDecimal pag = amt.getOrDefault("PagIBIG", BigDecimal.ZERO);
+                    BigDecimal loan = amt.getOrDefault("Loan", BigDecimal.ZERO);
+                    BigDecimal ca = amt.getOrDefault("Cash Advance", BigDecimal.ZERO);
+                    BigDecimal other = BigDecimal.ZERO;
+                    for (Map.Entry<String, BigDecimal> te : amt.entrySet()) {
+                        String t = te.getKey();
+                        if (!t.equals("SSS") && !t.equals("PhilHealth") && !t.equals("PagIBIG") && !t.equals("Loan") && !t.equals("Cash Advance"))
+                            other = other.add(te.getValue());
+                    }
+                    BigDecimal total = sss.add(ph).add(pag).add(loan).add(ca).add(other);
+                    tblModel.addRow(new Object[]{ name, periodStr, MONEY.format(sss), MONEY.format(ph), MONEY.format(pag), MONEY.format(loan), MONEY.format(ca), MONEY.format(other), MONEY.format(total) });
+                }
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
@@ -947,6 +1117,8 @@ public class page {
         btnRefresh.addActionListener(e -> loadDed.run());
         cmbPeriod.addActionListener(e -> loadDed.run());
         txtEmployeeId.addActionListener(e -> loadDed.run());
+        // Configure statutory rates: for when government/statutory deduction rates change. Next developer: implement rate storage (e.g. table or config) and apply when computing SSS, PhilHealth, PagIBIG.
+        btnStatutoryRates.addActionListener(e -> showStatutoryRatesPlaceholder(main));
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
