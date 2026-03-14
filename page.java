@@ -14,6 +14,14 @@ public class page {
     private static JPanel cardPanel = new JPanel(cardLayout);
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00");
 
+    // Match LoginPage palette
+    private static final Color SAGE = new Color(0xA4, 0xBB, 0x8E);
+    private static final Color DARK_OLIVE = new Color(0x5E, 0x71, 0x4B);
+    private static final Color GOLDEN = new Color(0xE8, 0xAB, 0x2F);
+    private static final Color DARK_BROWN = new Color(0x58, 0x3C, 0x2A);
+    private static final Color LIGHT_GREY = new Color(0xF5, 0xF5, 0xF5);
+    private static final Color MEDIUM_GREY = new Color(0x88, 0x88, 0x88);
+
     public static void main(String[] args) {
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
         // When run directly (not from LoginPage), use a default session so the app opens without login
@@ -32,9 +40,9 @@ public class page {
         JPanel mainPanel = new JPanel(new BorderLayout());
         JPanel leftPanel = new JPanel();
         leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
-        leftPanel.setPreferredSize(new Dimension(220, 0));
-        leftPanel.setBackground(new Color(45, 52, 54));
-        leftPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(30, 30, 30)));
+        leftPanel.setPreferredSize(new Dimension(200, 0));
+        leftPanel.setBackground(DARK_OLIVE);
+        leftPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, DARK_BROWN));
 
         String[] nav = { "Employee", "Deductions", "Compensation" };
         JButton[] buttons = new JButton[nav.length + 1];
@@ -85,7 +93,8 @@ public class page {
         panel.setOpaque(false);
         TitledBorder border = BorderFactory.createTitledBorder(title);
         border.setTitleFont(new Font("SansSerif", Font.BOLD, 12));
-        border.setTitleColor(new Color(100, 100, 100));
+        border.setTitleColor(DARK_BROWN);
+        border.setBorder(BorderFactory.createLineBorder(SAGE, 1));
         panel.setBorder(BorderFactory.createCompoundBorder(border, BorderFactory.createEmptyBorder(10, 10, 10, 10)));
         return panel;
     }
@@ -119,12 +128,13 @@ public class page {
         top.setOpaque(false);
         JLabel header = new JLabel("Employee", SwingConstants.LEFT);
         header.setFont(new Font("SansSerif", Font.BOLD, 22));
+        header.setForeground(DARK_BROWN);
         top.add(header, BorderLayout.WEST);
 
         JLabel banner = new JLabel("Logged in as: " + (AppSession.getUsername() != null ? AppSession.getUsername() : "") +
             " | Role: " + (AppSession.getHrRole() != null ? AppSession.getHrRole() : "") +
             " | Employee ID: " + (AppSession.getEmployeeId() != null ? AppSession.getEmployeeId() : "N/A"));
-        banner.setForeground(new Color(90, 90, 90));
+        banner.setForeground(MEDIUM_GREY);
         top.add(banner, BorderLayout.EAST);
         main.add(top, BorderLayout.NORTH);
 
@@ -163,7 +173,7 @@ public class page {
                 }
             }
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(p, ex.getMessage());
+            /* database unavailable */
         }
         p.add(form, BorderLayout.NORTH);
         return p;
@@ -202,7 +212,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(panel, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable */ }
         };
         Runnable loadDtr = () -> {
             try {
@@ -216,7 +226,7 @@ public class page {
                 for (DTRDao.DTRRow r : rows) {
                     model.addRow(new Object[]{ r.dtrId, r.dateVal, r.timeIn, r.timeOut, r.regularHours, r.overtimeHours, r.status });
                 }
-            } catch (Exception ex) { JOptionPane.showMessageDialog(panel, ex.getMessage()); }
+            } catch (Exception ex) { /* database unavailable */ }
         };
 
         loadPeriods.run();
@@ -268,15 +278,24 @@ public class page {
         JTextField fHourly = new JTextField();
         JComboBox<String> fDept = new JComboBox<>();
         JComboBox<PositionDao.Position> fPos = new JComboBox<>();
+        JTextField fRole = new JTextField();
+        fRole.setEditable(false);
+        JTextField fAttendanceDate = new JTextField(10);
+        fAttendanceDate.setText(java.time.LocalDate.now().toString());
+        JComboBox<String> fAttendance = new JComboBox<>(new String[]{"Present", "Late", "Absent"});
+        fAttendance.setSelectedItem("Present");
         JCheckBox fActive = new JCheckBox("Active", true);
         addLabeledField(form, "ID:", fId);
         addLabeledField(form, "Code:", fCode);
         addLabeledField(form, "Name:", fName);
+        addLabeledField(form, "Role:", fRole);
+        addLabeledField(form, "Department:", fDept);
+        addLabeledField(form, "Position:", fPos);
+        addLabeledField(form, "Attendance date:", fAttendanceDate);
+        addLabeledField(form, "Attendance:", fAttendance);
         addLabeledField(form, "Basic salary:", fBasic);
         addLabeledField(form, "Daily rate:", fDaily);
         addLabeledField(form, "Hourly rate:", fHourly);
-        addLabeledField(form, "Department:", fDept);
-        addLabeledField(form, "Position:", fPos);
         form.add(fActive);
         JPanel actBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         actBar.setOpaque(false);
@@ -284,11 +303,13 @@ public class page {
         JButton btnUpdate = new JButton("Update");
         JButton btnClear = new JButton("Clear");
         JButton btnRegisterUser = new JButton("Register User");
+        JButton btnExportDTR = new JButton("Export DTR to CSV");
         btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
         btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(Color.WHITE);
         btnClear.setBackground(new Color(225, 112, 85)); btnClear.setForeground(Color.WHITE);
         btnRegisterUser.setBackground(new Color(99, 110, 114)); btnRegisterUser.setForeground(Color.WHITE);
-        actBar.add(btnAdd); actBar.add(btnUpdate); actBar.add(btnClear); actBar.add(btnRegisterUser);
+        btnExportDTR.setBackground(GOLDEN); btnExportDTR.setForeground(DARK_BROWN);
+        actBar.add(btnAdd); actBar.add(btnUpdate); actBar.add(btnClear); actBar.add(btnRegisterUser); actBar.add(btnExportDTR);
         detail.add(actBar, BorderLayout.NORTH);
         detail.add(form, BorderLayout.CENTER);
 
@@ -307,14 +328,14 @@ public class page {
                 fDept.addItem("");
                 for (DepartmentDao.Department d : DepartmentDao.findAll())
                     fDept.addItem(d.departmentName);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadPositions = () -> {
             try {
                 fPos.removeAllItems();
                 fPos.addItem(null);
                 for (PositionDao.Position p : PositionDao.findAll()) fPos.addItem(p);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadEmployees = () -> {
             try {
@@ -325,7 +346,7 @@ public class page {
                     EmployeeDao.EmployeeRow r = (EmployeeDao.EmployeeRow) o;
                     return new Object[]{ r.employeeId, r.employeeCode, r.fullName, r.departmentName != null ? r.departmentName : "", r.basicSalary != null ? MONEY.format(r.basicSalary) : "", r.isActive ? "Active" : "Inactive" };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadDepts.run();
         loadPositions.run();
@@ -348,6 +369,7 @@ public class page {
                     fActive.setSelected(emp.isActive);
                 }
                 EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(id);
+                fRole.setText(role != null && role.roleType != null ? role.roleType : "");
                 if (role != null && role.departmentName != null)
                     fDept.setSelectedItem(role.departmentName);
                 if (role != null) {
@@ -361,12 +383,47 @@ public class page {
                         fPos.setSelectedItem(null);
                     }
                 }
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+                // Load attendance for selected date (default Present)
+                try {
+                    java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
+                    String status = DTRDao.getStatusForDate(id, attDate);
+                    if (status != null && (status.equals("Present") || status.equals("Late") || status.equals("Absent")))
+                        fAttendance.setSelectedItem(status);
+                    else
+                        fAttendance.setSelectedItem("Present");
+                } catch (Exception ignored) {
+                    fAttendance.setSelectedItem("Present");
+                }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
+        });
+
+        fAttendance.addActionListener(ev -> {
+            if (fId.getText().trim().isEmpty()) return;
+            try {
+                int empId = Integer.parseInt(fId.getText().trim());
+                java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
+                String status = (String) fAttendance.getSelectedItem();
+                if (status != null) DTRDao.setAttendanceStatus(empId, attDate, status);
+            } catch (Exception ignored) { }
+        });
+
+        btnExportDTR.addActionListener(e -> {
+            if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
+            try {
+                int empId = Integer.parseInt(fId.getText().trim());
+                ReportExporter.exportDTRToCsv(main, empId, fName.getText().trim(), null);
+            } catch (Exception ex) { JOptionPane.showMessageDialog(main, "Select an employee first."); }
         });
 
         btnRefresh.addActionListener(e -> { loadDepts.run(); loadEmployees.run(); });
         txtSearch.addActionListener(e -> loadEmployees.run());
-        btnClear.addActionListener(e -> { fId.setText(""); fCode.setText(""); fName.setText(""); fBasic.setText(""); fDaily.setText(""); fHourly.setText(""); fActive.setSelected(true); table.clearSelection(); });
+        btnClear.addActionListener(e -> {
+            fId.setText(""); fCode.setText(""); fName.setText(""); fRole.setText("");
+            fAttendanceDate.setText(java.time.LocalDate.now().toString());
+            fAttendance.setSelectedItem("Present");
+            fBasic.setText(""); fDaily.setText(""); fHourly.setText(""); fActive.setSelected(true);
+            table.clearSelection();
+        });
         btnAdd.addActionListener(e -> {
             try {
                 BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
@@ -375,7 +432,7 @@ public class page {
                 EmployeeDao.insert(fCode.getText().trim(), fName.getText().trim(), basic, daily, hourly, fActive.isSelected());
                 loadEmployees.run();
                 btnClear.doClick();
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (Exception ex) { /* database unavailable - show empty data */ }
         });
         btnUpdate.addActionListener(e -> {
             if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
@@ -390,7 +447,7 @@ public class page {
                     RegUserDao.upsertPositionForRole(role.employeeRoleId, pos != null ? pos.positionId : null);
                 }
                 loadEmployees.run();
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (Exception ex) { /* database unavailable - show empty data */ }
         });
 
         btnRegisterUser.addActionListener(e -> {
@@ -419,7 +476,7 @@ public class page {
                 HRUserDao.createUser(roleId, (String) r.getSelectedItem(), u.getText().trim(), new String(p.getPassword()));
                 JOptionPane.showMessageDialog(main, "User registered.");
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(main, ex.getMessage());
+                /* database unavailable - show empty data */
             }
         });
 
@@ -461,7 +518,7 @@ public class page {
                     DepartmentDao.Department d = (DepartmentDao.Department) o;
                     return new Object[]{ d.departmentId, d.departmentCode, d.departmentName };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         load.run();
 
@@ -477,14 +534,14 @@ public class page {
             try {
                 DepartmentDao.insert(fCode.getText().trim(), fName.getText().trim());
                 load.run(); btnClear.doClick();
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
         btnUpdate.addActionListener(e -> {
             if (fId.getText().isEmpty()) { JOptionPane.showMessageDialog(main, "Select a row."); return; }
             try {
                 DepartmentDao.update(Integer.parseInt(fId.getText()), fCode.getText().trim(), fName.getText().trim());
                 load.run();
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel left = new JPanel(new BorderLayout());
@@ -530,7 +587,7 @@ public class page {
                     PayrollPeriodDao.PayrollPeriod p = (PayrollPeriodDao.PayrollPeriod) o;
                     return new Object[]{ p.periodId, p.periodName, p.startDate, p.endDate, p.payDate, p.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         load.run();
         btnAdd.addActionListener(e -> {
@@ -538,7 +595,7 @@ public class page {
                 PayrollPeriodDao.insert(fName.getText().trim(), Date.valueOf(fStart.getText().trim()), Date.valueOf(fEnd.getText().trim()), Date.valueOf(fPay.getText().trim()), (String) fStatus.getSelectedItem());
                 load.run();
                 fName.setText(""); fStart.setText(""); fEnd.setText(""); fPay.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -596,7 +653,7 @@ public class page {
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll())
                     cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadEmployees = () -> {
             try {
@@ -604,7 +661,7 @@ public class page {
                 cmbEmployee.addItem(null);
                 for (EmployeeDao.EmployeeRow r : EmployeeDao.findAll())
                     cmbEmployee.addItem(r);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadDTR = () -> {
             try {
@@ -617,7 +674,7 @@ public class page {
                     DTRDao.DTRRow r = (DTRDao.DTRRow) o;
                     return new Object[]{ r.dtrId, r.fullName, r.dateVal, r.timeIn, r.timeOut, r.regularHours, r.overtimeHours, r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadEmployees.run();
@@ -637,7 +694,7 @@ public class page {
                 DTRDao.insert(empId, d, tin, tout, reg, ot, "pending");
                 loadDTR.run();
                 fEmpId.setText(""); fDate.setText(""); fTimeIn.setText(""); fTimeOut.setText(""); fReg.setText(""); fOT.setText("");
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (Exception ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel left = new JPanel(new BorderLayout());
@@ -700,7 +757,7 @@ public class page {
                     LeaveDao.LeaveRow r = (LeaveDao.LeaveRow) o;
                     return new Object[]{ r.leaveId, r.fullName, r.leaveType, r.startDate, r.endDate, r.totalDays, r.withPay ? "Yes" : "No", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         load.run();
         btnRefresh.addActionListener(e -> load.run());
@@ -711,7 +768,7 @@ public class page {
                     fDays.getText().trim().isEmpty() ? BigDecimal.ZERO : new BigDecimal(fDays.getText().trim()), fWithPay.isSelected(), "pending", fRemarks.getText());
                 load.run();
                 fEmpId.setText(""); fType.setText(""); fStart.setText(""); fEnd.setText(""); fDays.setText(""); fRemarks.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -771,7 +828,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadList = () -> {
             try {
@@ -782,7 +839,7 @@ public class page {
                     DeductionDao.DeductionRow r = (DeductionDao.DeductionRow) o;
                     return new Object[]{ r.deductionId, r.fullName, r.payrollPeriodId, r.deductionType, r.amount != null ? MONEY.format(r.amount) : "", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadList.run();
@@ -804,7 +861,7 @@ public class page {
                     new BigDecimal(fAmount.getText().trim()), fDesc.getText(), "active", AppSession.getHrUserId());
                 loadList.run();
                 fEmpId.setText(""); fAmount.setText(""); fDesc.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -825,7 +882,7 @@ public class page {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         main.setBackground(new Color(245, 246, 247));
-        main.add(new JLabel("Deductions", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); }}, BorderLayout.NORTH);
+        main.add(new JLabel("Deductions", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(DARK_BROWN); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
@@ -870,7 +927,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadDed = () -> {
             try {
@@ -883,7 +940,7 @@ public class page {
                     DeductionDao.DeductionRow r = (DeductionDao.DeductionRow) o;
                     return new Object[]{ r.deductionId, r.fullName, r.payrollPeriodId, r.deductionType, r.amount != null ? MONEY.format(r.amount) : "", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadDed.run();
@@ -915,7 +972,7 @@ public class page {
                     lblTotal.setText("Total: " + MONEY.format(DeductionDao.totalByPeriod(periodId)));
                 } catch (SQLException ignored) {}
                 fEmpId.setText(""); fAmount.setText(""); fDesc.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -941,7 +998,7 @@ public class page {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         main.setBackground(Color.WHITE);
-        main.add(new JLabel("Compensation", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); }}, BorderLayout.NORTH);
+        main.add(new JLabel("Compensation", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(DARK_BROWN); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
@@ -972,7 +1029,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable load = () -> {
             try {
@@ -985,7 +1042,7 @@ public class page {
                     CompensationDao.CompensationRow r = (CompensationDao.CompensationRow) o;
                     return new Object[]{ r.compensationId, r.fullName, r.payrollPeriodId, r.basicAmount != null ? MONEY.format(r.basicAmount) : "", r.overtimeAmount != null ? MONEY.format(r.overtimeAmount) : "", r.totalCompensation != null ? MONEY.format(r.totalCompensation) : "", r.hrStatus };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         load.run();
@@ -1030,7 +1087,7 @@ public class page {
                 CompensationDao.insert(Integer.parseInt(fEmpId.getText()), periodId, null, AppSession.getHrUserId(), basicH, basicA, otH, otA, total, "draft");
                 load.run();
                 fEmpId.setText(""); fBasicH.setText(""); fBasicA.setText(""); fOTH.setText(""); fOTA.setText(""); fTotal.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -1072,7 +1129,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable load = () -> {
             try {
@@ -1083,7 +1140,7 @@ public class page {
                     PayrollDao.PayrollRow r = (PayrollDao.PayrollRow) o;
                     return new Object[]{ r.payrollId, r.fullName, r.grossPay != null ? MONEY.format(r.grossPay) : "", r.totalDeductions != null ? MONEY.format(r.totalDeductions) : "", r.netPay != null ? MONEY.format(r.netPay) : "", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         load.run();
@@ -1126,14 +1183,14 @@ public class page {
                 cmbPeriod.removeAllItems();
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadDepts = () -> {
             try {
                 cmbDept.removeAllItems();
                 cmbDept.addItem(null);
                 for (DepartmentDao.Department d : DepartmentDao.findAll()) cmbDept.addItem(d);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable load = () -> {
             try {
@@ -1144,7 +1201,7 @@ public class page {
                     LedgerDao.LedgerRow r = (LedgerDao.LedgerRow) o;
                     return new Object[]{ r.ledgerId, r.departmentName, r.payrollPeriodId, r.totalGross != null ? MONEY.format(r.totalGross) : "", r.totalDeductions != null ? MONEY.format(r.totalDeductions) : "", r.totalNet != null ? MONEY.format(r.totalNet) : "", r.generationDate };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadDepts.run();

@@ -195,6 +195,38 @@ public class ReportExporter {
         }
     }
 
+    /** Export one employee's compiled DTR to CSV. periodId null = all periods. */
+    public static File exportDTRToCsv(java.awt.Component parent, int employeeId, String employeeName, Integer periodId) {
+        try {
+            List<DTRDao.DTRRow> rows = DTRDao.findByPeriodAndEmployee(periodId, employeeId);
+            String safeName = (employeeName != null && !employeeName.isEmpty()) ? employeeName.replaceAll("[^a-zA-Z0-9_-]", "_") : "employee_" + employeeId;
+            String defaultName = "DTR_" + safeName + "_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")) + ".csv";
+            File file = chooseSaveFile(parent, defaultName);
+            if (file == null) return null;
+            try (BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
+                writeRow(w, "Daily Time Record (DTR)");
+                writeRow(w, "Employee", employeeName != null ? employeeName : String.valueOf(employeeId));
+                writeRow(w, "Generated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+                writeRow(w);
+                writeRow(w, "Date", "Time In", "Time Out", "Regular Hours", "Overtime Hours", "Status");
+                for (DTRDao.DTRRow r : rows) {
+                    writeRow(w,
+                        r.dateVal != null ? r.dateVal.toString() : "",
+                        r.timeIn != null ? r.timeIn.toString() : "",
+                        r.timeOut != null ? r.timeOut.toString() : "",
+                        r.regularHours != null ? r.regularHours.toPlainString() : "",
+                        r.overtimeHours != null ? r.overtimeHours.toPlainString() : "",
+                        r.status != null ? r.status : "");
+                }
+            }
+            JOptionPane.showMessageDialog(parent, "Report saved to:\n" + file.getAbsolutePath(), "Export", JOptionPane.INFORMATION_MESSAGE);
+            return file;
+        } catch (SQLException | java.io.IOException ex) {
+            JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
     private static File chooseSaveFile(java.awt.Component parent, String defaultName) {
         JFileChooser fc = new JFileChooser();
         fc.setSelectedFile(new File(defaultName));
