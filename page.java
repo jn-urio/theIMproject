@@ -1,6 +1,8 @@
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -11,6 +13,7 @@ import java.text.DecimalFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class page {
     private static CardLayout cardLayout = new CardLayout();
@@ -24,6 +27,12 @@ public class page {
     private static final Color DARK_BROWN = new Color(0x58, 0x3C, 0x2A);
     private static final Color LIGHT_GREY = new Color(0xF5, 0xF5, 0xF5);
     private static final Color MEDIUM_GREY = new Color(0x88, 0x88, 0x88);
+    /** Soft background for content area so panels stand out. */
+    private static final Color CONTENT_BG = new Color(0xF2, 0xF3, 0xF5);
+    /** Table header background for clear column labels. */
+    private static final Color TABLE_HEADER_BG = new Color(0x5E, 0x71, 0x4B);
+    /** All UI text: black or this dark grey for consistency. */
+    private static final Color TEXT_DARK = new Color(0x2D, 0x2D, 0x2D);
 
     public static void main(String[] args) {
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
@@ -35,6 +44,12 @@ public class page {
     }
 
     public static void createAndShowUI() {
+        UIManager.put("Label.foreground", TEXT_DARK);
+        UIManager.put("TextField.foreground", TEXT_DARK);
+        UIManager.put("ComboBox.foreground", TEXT_DARK);
+        UIManager.put("Button.foreground", TEXT_DARK);
+        UIManager.put("Table.foreground", Color.BLACK);
+        UIManager.put("Table.selectionForeground", Color.BLACK);
         JFrame frame = new JFrame("Philippine Payroll – " + (AppSession.getUsername() != null ? AppSession.getUsername() : "HR"));
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -78,6 +93,7 @@ public class page {
         buttons[2].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_COMP"));
         buttons[3].addActionListener(e -> { AppSession.clear(); System.exit(0); });
 
+        cardPanel.setBackground(CONTENT_BG);
         mainPanel.add(leftPanel, BorderLayout.WEST);
         mainPanel.add(cardPanel, BorderLayout.CENTER);
         frame.add(mainPanel);
@@ -104,24 +120,67 @@ public class page {
         b.setMaximumSize(new Dimension(200, 45));
         b.setAlignmentX(Component.CENTER_ALIGNMENT);
         b.setFocusPainted(false);
-        b.setBackground(new Color(45, 52, 54));
-        b.setForeground(Color.WHITE);
+        boolean isLogout = "Logout".equals(text);
+        if (isLogout) {
+            b.setBackground(new Color(0x6B, 0x5B, 0x50));
+            b.setForeground(Color.WHITE);
+            b.addMouseListener(new java.awt.event.MouseAdapter() {
+                public void mouseEntered(java.awt.event.MouseEvent evt) { b.setBackground(new Color(0x7A, 0x68, 0x5C)); }
+                public void mouseExited(java.awt.event.MouseEvent evt) { b.setBackground(new Color(0x6B, 0x5B, 0x50)); }
+            });
+        } else {
+            b.setBackground(SAGE);
+            b.setForeground(TEXT_DARK);
+            b.addMouseListener(new java.awt.event.MouseAdapter() {
+                public void mouseEntered(java.awt.event.MouseEvent evt) { b.setBackground(SAGE.brighter()); }
+                public void mouseExited(java.awt.event.MouseEvent evt) { b.setBackground(SAGE); }
+            });
+        }
         b.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        b.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseEntered(java.awt.event.MouseEvent evt) { b.setBackground(new Color(63, 72, 75)); }
-            public void mouseExited(java.awt.event.MouseEvent evt) { b.setBackground(new Color(45, 52, 54)); }
-        });
         return b;
+    }
+
+    /** Pure black for table cell text so it always appears black. */
+    private static final Color CELL_BLACK = new Color(0, 0, 0);
+
+    /** Makes tables clearer: header styling, row height, light grid, and cell text that appears black. */
+    private static void styleTable(JTable table) {
+        JTableHeader header = table.getTableHeader();
+        header.setBackground(TABLE_HEADER_BG);
+        header.setForeground(Color.BLACK);
+        header.setFont(header.getFont().deriveFont(Font.BOLD));
+        header.setPreferredSize(new Dimension(0, 32));
+        table.setRowHeight(28);
+        table.setShowGrid(true);
+        table.setGridColor(new Color(0xE0, 0xE0, 0xE0));
+        table.setForeground(CELL_BLACK);
+        table.setSelectionBackground(new Color(0xE8, 0xED, 0xE0));
+        table.setSelectionForeground(CELL_BLACK);
+        DefaultTableCellRenderer blackRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focused, int row, int column) {
+                JLabel l = (JLabel) super.getTableCellRendererComponent(t, value, selected, focused, row, column);
+                l.setForeground(CELL_BLACK);
+                l.setOpaque(true);
+                if (selected) l.setBackground(new Color(0xE8, 0xED, 0xE0));
+                else l.setBackground(Color.WHITE);
+                return l;
+            }
+        };
+        table.setDefaultRenderer(Object.class, blackRenderer);
+        table.setDefaultRenderer(String.class, blackRenderer);
+        table.setDefaultRenderer(Number.class, blackRenderer);
     }
 
     private static JPanel createGroupPanel(String title) {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setOpaque(false);
+        panel.setBackground(Color.WHITE);
+        panel.setOpaque(true);
         TitledBorder border = BorderFactory.createTitledBorder(title);
-        border.setTitleFont(new Font("SansSerif", Font.BOLD, 12));
-        border.setTitleColor(DARK_BROWN);
+        border.setTitleFont(new Font("SansSerif", Font.BOLD, 13));
+        border.setTitleColor(TEXT_DARK);
         border.setBorder(BorderFactory.createLineBorder(SAGE, 1));
-        panel.setBorder(BorderFactory.createCompoundBorder(border, BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+        panel.setBorder(BorderFactory.createCompoundBorder(border, BorderFactory.createEmptyBorder(12, 12, 12, 12)));
         return panel;
     }
 
@@ -268,12 +327,12 @@ public class page {
         south.setBackground(Color.WHITE);
         JButton btnSave = new JButton("Save");
         btnSave.setBackground(new Color(9, 132, 227));
-        btnSave.setForeground(Color.WHITE);
+        btnSave.setForeground(TEXT_DARK);
         JButton btnClose = new JButton("Close");
         // Add/Register new employee: button only; implementation left for next developer.
         JButton btnAddNew = new JButton("Add / Register new employee");
         btnAddNew.setBackground(GOLDEN);
-        btnAddNew.setForeground(DARK_BROWN);
+        btnAddNew.setForeground(TEXT_DARK);
         btnAddNew.setToolTipText("Not yet implemented. Add logic to insert new employee and optionally register as user.");
 
         btnSave.addActionListener(e -> {
@@ -325,13 +384,13 @@ public class page {
         top.setOpaque(false);
         JLabel header = new JLabel("Employee", SwingConstants.LEFT);
         header.setFont(new Font("SansSerif", Font.BOLD, 22));
-        header.setForeground(DARK_BROWN);
+        header.setForeground(TEXT_DARK);
         top.add(header, BorderLayout.WEST);
 
         JLabel banner = new JLabel("Logged in as: " + (AppSession.getUsername() != null ? AppSession.getUsername() : "") +
             " | Role: " + (AppSession.getHrRole() != null ? AppSession.getHrRole() : "") +
             " | Employee ID: " + (AppSession.getEmployeeId() != null ? AppSession.getEmployeeId() : "N/A"));
-        banner.setForeground(MEDIUM_GREY);
+        banner.setForeground(TEXT_DARK);
         top.add(banner, BorderLayout.EAST);
         main.add(top, BorderLayout.NORTH);
 
@@ -400,6 +459,7 @@ public class page {
         String[] cols = {"DTR ID", "Date", "Time In", "Time Out", "Regular", "OT", "Status"};
         DefaultTableModel model = new DefaultTableModel(cols, 0);
         JTable table = new JTable(model);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
         scroll.setPreferredSize(new Dimension(0, 220));
 
@@ -470,7 +530,7 @@ public class page {
         detail.setOpaque(false);
         JPanel attPanel = createGroupPanel("Attendance");
         JLabel lblSelected = new JLabel("Select an employee from the table.");
-        lblSelected.setForeground(MEDIUM_GREY);
+        lblSelected.setForeground(TEXT_DARK);
         JTextField fAttendanceDate = new JTextField(10);
         fAttendanceDate.setText(java.time.LocalDate.now().toString());
         JComboBox<String> fAttendance = new JComboBox<>(new String[]{"Present", "Late", "Absent"});
@@ -500,16 +560,16 @@ public class page {
         actBar.setOpaque(false);
         JButton btnEmployee = new JButton("Employee");
         btnEmployee.setBackground(DARK_OLIVE);
-        btnEmployee.setForeground(Color.WHITE);
+        btnEmployee.setForeground(TEXT_DARK);
         JButton btnFullInfo = new JButton("Full employee information");
         JButton btnAddNewEmployee = new JButton("Add new employee");
         JButton btnExportDTR = new JButton("Export DTR");
         btnFullInfo.setBackground(new Color(9, 132, 227));
-        btnFullInfo.setForeground(Color.WHITE);
+        btnFullInfo.setForeground(TEXT_DARK);
         btnAddNewEmployee.setBackground(SAGE);
-        btnAddNewEmployee.setForeground(DARK_BROWN);
+        btnAddNewEmployee.setForeground(TEXT_DARK);
         btnExportDTR.setBackground(GOLDEN);
-        btnExportDTR.setForeground(DARK_BROWN);
+        btnExportDTR.setForeground(TEXT_DARK);
         actBar.add(btnEmployee);
         actBar.add(btnFullInfo);
         actBar.add(btnAddNewEmployee);
@@ -517,10 +577,13 @@ public class page {
         detail.add(actBar, BorderLayout.NORTH);
         detail.add(attPanel, BorderLayout.CENTER);
 
-        String[] cols = {"ID", "Code", "Name", "Department", "Basic", "Status"};
+        String[] cols = {"Code", "Name", "Department", "Basic", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
+
+        final AtomicReference<List<EmployeeDao.EmployeeRow>> currentEmployeeRows = new AtomicReference<>();
 
         Runnable loadDepts = () -> {
             try {
@@ -535,9 +598,10 @@ public class page {
                 String dept = (String) cmbDept.getSelectedItem();
                 String search = txtSearch.getText();
                 List<EmployeeDao.EmployeeRow> rows = EmployeeDao.findAllWithDepartment(dept, search);
+                currentEmployeeRows.set(rows);
                 refreshTable(tblModel, cols, rows, o -> {
                     EmployeeDao.EmployeeRow r = (EmployeeDao.EmployeeRow) o;
-                    return new Object[]{ r.employeeId, r.employeeCode, r.fullName, r.departmentName != null ? r.departmentName : "", r.basicSalary != null ? MONEY.format(r.basicSalary) : "", r.isActive ? "Active" : "Inactive" };
+                    return new Object[]{ r.employeeCode, r.fullName, r.departmentName != null ? r.departmentName : "", r.basicSalary != null ? MONEY.format(r.basicSalary) : "", r.isActive ? "Active" : "Inactive" };
                 });
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
@@ -548,8 +612,14 @@ public class page {
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting() || table.getSelectedRow() < 0) return;
             int row = table.convertRowIndexToModel(table.getSelectedRow());
-            Integer id = (Integer) tblModel.getValueAt(row, 0);
-            String name = tblModel.getValueAt(row, 2) != null ? tblModel.getValueAt(row, 2).toString() : "";
+            Integer id = null;
+            String name = "";
+            List<EmployeeDao.EmployeeRow> list = currentEmployeeRows.get();
+            if (list != null && row >= 0 && row < list.size()) {
+                EmployeeDao.EmployeeRow r = list.get(row);
+                id = r.employeeId;
+                name = r.fullName != null ? r.fullName : "";
+            }
             if (id == null) return;
             selectedEmployeeId[0] = id;
             selectedEmployeeName[0] = name;
@@ -636,13 +706,14 @@ public class page {
         JButton btnAdd = new JButton("Add");
         JButton btnUpdate = new JButton("Update");
         JButton btnClear = new JButton("Clear");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
-        btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
+        btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(TEXT_DARK);
         form.add(btnAdd); form.add(btnUpdate); form.add(btnClear);
 
         String[] cols = {"ID", "Code", "Name"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable load = () -> {
@@ -697,6 +768,7 @@ public class page {
         String[] cols = {"ID", "Period", "Start", "End", "Pay date", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("New Period");
@@ -711,7 +783,7 @@ public class page {
         addLabeledField(form, "Pay date (YYYY-MM-DD):", fPay);
         addLabeledField(form, "Status:", fStatus);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable load = () -> {
@@ -761,6 +833,7 @@ public class page {
         String[] cols = {"DTR ID", "Employee", "Date", "Time In", "Time Out", "Regular", "OT", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("Add DTR entry");
@@ -777,7 +850,7 @@ public class page {
         addLabeledField(form, "Regular hours:", fReg);
         addLabeledField(form, "OT hours:", fOT);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable loadPeriods = () -> {
@@ -862,6 +935,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Type", "Start", "End", "Days", "With pay", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("New leave");
@@ -880,7 +954,7 @@ public class page {
         form.add(fWithPay);
         addLabeledField(form, "Remarks:", fRemarks);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable load = () -> {
@@ -922,14 +996,14 @@ public class page {
     private static JPanel buildContributionsPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        main.setBackground(new Color(230, 245, 255));
+        main.setBackground(Color.WHITE);
         main.add(new JLabel("Contributions (SSS, PhilHealth, PagIBIG)", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export summary to Excel");
         btnExport.setBackground(new Color(0, 102, 204));
-        btnExport.setForeground(Color.WHITE);
+        btnExport.setForeground(TEXT_DARK);
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setOpaque(false);
         top.add(new JLabel("Period:"));
@@ -940,6 +1014,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Period", "Type", "Amount", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("Add contribution");
@@ -953,7 +1028,7 @@ public class page {
         addLabeledField(form, "Description:", fDesc);
         JButton btnAdd = new JButton("Add");
         btnAdd.setBackground(new Color(0, 184, 148));
-        btnAdd.setForeground(Color.WHITE);
+        btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable loadPeriods = () -> {
@@ -1016,17 +1091,17 @@ public class page {
     private static JPanel buildDeductionsPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        main.setBackground(new Color(245, 246, 247));
-        main.add(new JLabel("Deductions", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(DARK_BROWN); }}, BorderLayout.NORTH);
+        main.setBackground(Color.WHITE);
+        main.add(new JLabel("Deductions", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(TEXT_DARK); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export report to CSV");
         JButton btnStatutoryRates = new JButton("Configure statutory rates");
         btnExport.setBackground(new Color(0, 102, 204));
-        btnExport.setForeground(Color.WHITE);
+        btnExport.setForeground(TEXT_DARK);
         btnStatutoryRates.setBackground(GOLDEN);
-        btnStatutoryRates.setForeground(DARK_BROWN);
+        btnStatutoryRates.setForeground(TEXT_DARK);
         JTextField txtEmployeeId = new JTextField(8);
         Integer sessionEmpId = AppSession.getEmployeeId();
         txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
@@ -1045,6 +1120,7 @@ public class page {
         String[] cols = {"Employee", "Period", "SSS", "PhilHealth", "PagIBIG", "Loan", "Cash Advance", "Other", "Total"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("Add deduction");
@@ -1059,7 +1135,7 @@ public class page {
         addLabeledField(form, "Amount:", fAmount);
         addLabeledField(form, "Description:", fDesc);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable loadPeriods = () -> {
@@ -1170,13 +1246,13 @@ public class page {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         main.setBackground(Color.WHITE);
-        main.add(new JLabel("Compensation", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(DARK_BROWN); }}, BorderLayout.NORTH);
+        main.add(new JLabel("Compensation", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(TEXT_DARK); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export report to CSV");
         btnExport.setBackground(new Color(0, 102, 204));
-        btnExport.setForeground(Color.WHITE);
+        btnExport.setForeground(TEXT_DARK);
         JTextField txtEmployeeId = new JTextField(8);
         Integer sessionEmpId = AppSession.getEmployeeId();
         txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
@@ -1193,6 +1269,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Period", "Basic", "OT", "Total", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable loadPeriods = () -> {
@@ -1243,7 +1320,7 @@ public class page {
         addLabeledField(form, "OT amount:", fOTA);
         addLabeledField(form, "Total:", fTotal);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
         btnAdd.addActionListener(e -> {
             try {
@@ -1293,6 +1370,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Gross", "Deductions", "Net", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable loadPeriods = () -> {
@@ -1348,6 +1426,7 @@ public class page {
         String[] cols = {"Ledger ID", "Department", "Period", "Gross", "Deductions", "Net", "Generated"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable loadPeriods = () -> {
