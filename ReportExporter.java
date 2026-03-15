@@ -235,7 +235,8 @@ public class ReportExporter {
     // ---------- Company-style reports (Rancho Palos Verdes format) ----------
 
     private static final String COMPANY_HEADER = "RANCHO PALOS VERDES GOLF AND COUNTRY CLUB";
-    private static final String[] DEDUCTION_TYPE_COLUMNS = {
+    /** Company deduction columns (for export and for UI table format). */
+    public static final String[] DEDUCTION_TYPE_COLUMNS = {
         "SSS", "Calamity Loan", "Pag-IBIG", "Pag-IBIG Loan", "Emp. loan", "Cash Advance", "Emerg. Loan", "Emp. Savings",
         "Rice Coop", "Mandug", "Bag/umbrella", "RAFFLE", "Relief", "GLOBE", "Alsons", "CHARGES", "W/Held TAX"
     };
@@ -248,6 +249,10 @@ public class ReportExporter {
         if (type == null) return "Other";
         String t = type.trim();
         return DEDUCTION_TYPE_ALIASES.getOrDefault(t, t);
+    }
+    /** For UI: map deduction type to company column name (e.g. PagIBIG -> Pag-IBIG). */
+    public static String normalizeDeductionTypeForDisplay(String type) {
+        return normalizeDeductionType(type);
     }
 
     /** Export deduction summary by department in company Excel format (pivot by employee, columns = deduction types). departmentFilter null = all; employeeIds null = all. */

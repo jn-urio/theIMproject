@@ -72,8 +72,8 @@ public class page {
         leftPanel.add(Box.createVerticalStrut(12));
 
         String[] nav = AppSession.isAdmin()
-            ? new String[]{ "Employee", "Deductions", "Compensation", "Reports", "Payroll Periods", "Statutory", "Offset" }
-            : new String[]{ "Employee", "Deductions", "Compensation", "Reports", "Offset" };
+            ? new String[]{ "Attendance", "Deductions", "Compensation", "Reports", "Payroll Periods", "Offset" }
+            : new String[]{ "Attendance", "Deductions", "Compensation", "Reports", "Offset" };
         JButton[] buttons = new JButton[nav.length + 1];
         for (int i = 0; i < nav.length; i++) {
             buttons[i] = createNavButton(nav[i]);
@@ -85,23 +85,21 @@ public class page {
         leftPanel.add(buttons[nav.length]);
         leftPanel.add(Box.createVerticalStrut(10));
 
-        cardPanel.add(buildEmployeeHubPage(), "PAGE_EMPLOYEE");
+        cardPanel.add(buildAttendanceHubPage(), "PAGE_ATTENDANCE");
         cardPanel.add(buildDeductionsHubPage(), "PAGE_DEDUCTIONS");
         cardPanel.add(buildCompensationHubPage(), "PAGE_COMP");
         cardPanel.add(buildReportsPage(), "PAGE_REPORTS");
         cardPanel.add(buildPayrollPeriodsPage(), "PAGE_PAYROLL_PERIODS");
-        cardPanel.add(buildStatutoryPage(), "PAGE_STATUTORY");
         cardPanel.add(buildOffsetPage(), "PAGE_OFFSET");
 
-        buttons[0].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_EMPLOYEE"));
+        buttons[0].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_ATTENDANCE"));
         buttons[1].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_DEDUCTIONS"));
         buttons[2].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_COMP"));
         buttons[3].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_REPORTS"));
         if (AppSession.isAdmin()) {
             buttons[4].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_PAYROLL_PERIODS"));
-            buttons[5].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_STATUTORY"));
-            buttons[6].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_OFFSET"));
-            buttons[7].addActionListener(e -> { AppSession.clear(); System.exit(0); });
+            buttons[5].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_OFFSET"));
+            buttons[6].addActionListener(e -> { AppSession.clear(); System.exit(0); });
         } else {
             buttons[4].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_OFFSET"));
             buttons[5].addActionListener(e -> { AppSession.clear(); System.exit(0); });
@@ -323,11 +321,88 @@ public class page {
      * Next developer: implement a dialog or form to edit and persist rates (e.g. DB table or config file),
      * and use those rates when computing or displaying statutory deductions.
      */
-    private static void showStatutoryRatesPlaceholder(Component parent) {
-        JOptionPane.showMessageDialog(parent,
-            "Configure statutory rates is not yet implemented.\n\nNext developer: add a screen to edit and save SSS, PhilHealth, and PagIBIG rates (e.g. in a table or config), and apply them when computing statutory deductions.",
-            "Configure statutory rates",
-            JOptionPane.INFORMATION_MESSAGE);
+    private static void showStatutoryRatesDialog(Window parent) {
+        if (parent == null) return;
+        JDialog dlg = new JDialog(parent, "Configure Statutory Rates", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.setLayout(new BorderLayout(15, 15));
+        dlg.getContentPane().setBackground(Color.WHITE);
+        dlg.setSize(480, 420);
+
+        JPanel form = createGroupPanel("Rates (SSS, PhilHealth, Pag-IBIG)");
+        JTextField fPagibigEmp = new JTextField(10);
+        JTextField fPagibigEr = new JTextField(10);
+        JTextField fPhilHealth = new JTextField(10);
+        JTextField fSssNote = new JTextField(30);
+        addLabeledField(form, "Pag-IBIG employee share (fixed, e.g. 200):", fPagibigEmp);
+        addLabeledField(form, "Pag-IBIG employer share (fixed, e.g. 200):", fPagibigEr);
+        addLabeledField(form, "PhilHealth % of basic (e.g. 5):", fPhilHealth);
+        addLabeledField(form, "SSS note (bracket table / manual):", fSssNote);
+        JButton btnSave = new JButton("Save rates");
+        btnSave.setBackground(SAGE);
+        btnSave.setForeground(TEXT_DARK);
+        form.add(btnSave);
+
+        Runnable loadRates = () -> {
+            try {
+                java.math.BigDecimal pe = StatutoryDao.getDecimal("pagibig_employee_share");
+                java.math.BigDecimal pr = StatutoryDao.getDecimal("pagibig_employer_share");
+                java.math.BigDecimal ph = StatutoryDao.getDecimal("philhealth_rate_pct");
+                String ss = StatutoryDao.getText("sss_note");
+                fPagibigEmp.setText(pe != null ? pe.toPlainString() : "200");
+                fPagibigEr.setText(pr != null ? pr.toPlainString() : "200");
+                fPhilHealth.setText(ph != null ? ph.toPlainString() : "5");
+                fSssNote.setText(ss != null ? ss : "");
+            } catch (SQLException ex) { /* ignore */ }
+        };
+        loadRates.run();
+        btnSave.addActionListener(e -> {
+            try {
+                StatutoryDao.setDecimal("pagibig_employee_share", new BigDecimal(fPagibigEmp.getText().trim()));
+                StatutoryDao.setDecimal("pagibig_employer_share", new BigDecimal(fPagibigEr.getText().trim()));
+                StatutoryDao.setDecimal("philhealth_rate_pct", new BigDecimal(fPhilHealth.getText().trim()));
+                StatutoryDao.setText("sss_note", fSssNote.getText().trim());
+                JOptionPane.showMessageDialog(dlg, "Rates saved.");
+            } catch (Exception ex) { JOptionPane.showMessageDialog(dlg, "Save failed: " + ex.getMessage()); }
+        });
+
+        JPanel applyPanel = createGroupPanel("Apply for period");
+        JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
+        JButton btnApplyPagibig = new JButton("Add Pag-IBIG deduction for all employees (period)");
+        btnApplyPagibig.setBackground(GOLDEN);
+        btnApplyPagibig.setForeground(TEXT_DARK);
+        try {
+            cmbPeriod.addItem(null);
+            for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
+        } catch (SQLException ex) { /* ignore */ }
+        addLabeledField(applyPanel, "Payroll period:", cmbPeriod);
+        applyPanel.add(btnApplyPagibig);
+        btnApplyPagibig.addActionListener(e -> {
+            if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
+                JOptionPane.showMessageDialog(dlg, "Select a payroll period."); return;
+            }
+            int periodId = ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId;
+            try {
+                java.math.BigDecimal amt = StatutoryDao.getDecimal("pagibig_employee_share");
+                if (amt == null || amt.compareTo(BigDecimal.ZERO) <= 0) {
+                    JOptionPane.showMessageDialog(dlg, "Set Pag-IBIG employee share first."); return;
+                }
+                int count = 0;
+                for (EmployeeDao.EmployeeRow emp : EmployeeDao.findAll()) {
+                    if (!emp.isActive) continue;
+                    DeductionDao.insert(emp.employeeId, periodId, "Pag-IBIG", amt, "Statutory (fixed)", "active", AppSession.getHrUserId());
+                    count++;
+                }
+                JOptionPane.showMessageDialog(dlg, "Added Pag-IBIG deduction for " + count + " employees.");
+            } catch (SQLException ex) { JOptionPane.showMessageDialog(dlg, "Failed: " + ex.getMessage()); }
+        });
+
+        JPanel north = new JPanel(new BorderLayout(10, 10));
+        north.setOpaque(false);
+        north.add(form, BorderLayout.NORTH);
+        north.add(applyPanel, BorderLayout.CENTER);
+        dlg.add(north, BorderLayout.CENTER);
+        dlg.setLocationRelativeTo(parent);
+        dlg.setVisible(true);
     }
 
     private static void showFullEmployeeInfoDialog(Window parent, int employeeId, Runnable onSaved) {
@@ -465,14 +540,14 @@ public class page {
     }
 
     // ===================== HUB PAGES (requested buttons) =====================
-    private static JPanel buildEmployeeHubPage() {
+    private static JPanel buildAttendanceHubPage() {
         JPanel main = new JPanel(new BorderLayout(10, 10));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         main.setBackground(Color.WHITE);
 
         JPanel top = new JPanel(new BorderLayout());
         top.setOpaque(false);
-        JLabel header = new JLabel("Employee", SwingConstants.LEFT);
+        JLabel header = new JLabel("Attendance", SwingConstants.LEFT);
         header.setFont(new Font("SansSerif", Font.BOLD, 22));
         header.setForeground(TEXT_DARK);
         top.add(header, BorderLayout.WEST);
@@ -487,7 +562,7 @@ public class page {
         JPanel center = new JPanel(new BorderLayout(10, 10));
         center.setOpaque(false);
         center.add(AppSession.isAdmin() ? buildEmployeesPage() : buildMyEmployeePage(), BorderLayout.CENTER);
-        center.add(buildEmployeeDTRPanel(), BorderLayout.SOUTH);
+        center.add(buildAttendanceDTRPanel(), BorderLayout.SOUTH);
         main.add(center, BorderLayout.CENTER);
         return main;
     }
@@ -525,14 +600,19 @@ public class page {
         return p;
     }
 
-    private static JPanel buildEmployeeDTRPanel() {
+    private static final String DTR_TITLE = "Rancho Palos Verdes Golf and Country Club";
+    private static final String[] DTR_TYPE_ROWS = { "Reg", "shp", "lhp", "A", "LWP", "O", "RD" };
+
+    private static JPanel buildAttendanceDTRPanel() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setOpaque(false);
         panel.setBorder(BorderFactory.createTitledBorder("DTR (Daily Time Record)"));
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JTextField txtEmployeeId = new JTextField(8);
-        JButton btnLoad = new JButton("Load DTR");
+        JButton btnRefresh = new JButton("Refresh");
+        JButton btnExportDTR = new JButton("Export DTR");
+        JButton btnSaveStatus = new JButton("Save status");
 
         Integer sessionEmpId = AppSession.getEmployeeId();
         txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
@@ -544,14 +624,18 @@ public class page {
         top.add(cmbPeriod);
         top.add(new JLabel("Employee ID:"));
         top.add(txtEmployeeId);
-        top.add(btnLoad);
+        top.add(btnRefresh);
+        top.add(btnExportDTR);
+        top.add(btnSaveStatus);
 
         String[] cols = {"DTR ID", "Date", "Time In", "Time Out", "Regular", "OT", "Offset Used", "Status"};
-        DefaultTableModel model = new DefaultTableModel(cols, 0);
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int row, int col) { return col == 7; }
+        };
         JTable table = new JTable(model);
         styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
-        scroll.setPreferredSize(new Dimension(0, 220));
+        scroll.setPreferredSize(new Dimension(0, 180));
 
         Runnable loadPeriods = () -> {
             try {
@@ -567,22 +651,130 @@ public class page {
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
                 Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
                 if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
-                if (empId == null) { JOptionPane.showMessageDialog(panel, "No employee selected."); return; }
+                if (empId == null) { model.setRowCount(0); return; }
                 List<DTRDao.DTRRow> rows = DTRDao.findByPeriodAndEmployee(periodId, empId);
                 model.setRowCount(0);
                 for (DTRDao.DTRRow r : rows) {
-                    model.addRow(new Object[]{ r.dtrId, r.dateVal, r.timeIn, r.timeOut, r.regularHours, r.overtimeHours, r.offsetHoursUsed, r.status });
+                    model.addRow(new Object[]{ r.dtrId, r.dateVal, r.timeIn, r.timeOut, r.regularHours, r.overtimeHours, r.offsetHoursUsed, r.status != null ? r.status : "" });
                 }
             } catch (Exception ex) { /* database unavailable */ }
         };
 
         loadPeriods.run();
         loadDtr.run();
-        btnLoad.addActionListener(e -> loadDtr.run());
-        cmbPeriod.addActionListener(e -> loadDtr.run());
+        btnRefresh.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
+        cmbPeriod.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
+        txtEmployeeId.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
+
+        btnExportDTR.addActionListener(e -> {
+            Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
+            Integer empId = null;
+            try { empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) {}
+            if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
+            if (empId == null) { JOptionPane.showMessageDialog(panel, "Select an employee."); return; }
+            String name = null;
+            try { EmployeeDao.Employee emp = EmployeeDao.findById(empId); if (emp != null) name = emp.fullName; } catch (SQLException ignored) {}
+            ReportExporter.exportDTRToCsv(panel, empId, name, periodId);
+        });
+
+        btnSaveStatus.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { JOptionPane.showMessageDialog(panel, "Select a DTR row to update status."); return; }
+            Object idObj = model.getValueAt(row, 0);
+            Object statusObj = model.getValueAt(row, 7);
+            if (!(idObj instanceof Number) || statusObj == null) return;
+            int dtrId = ((Number) idObj).intValue();
+            String status = String.valueOf(statusObj).trim();
+            if (status.isEmpty()) status = "Present";
+            try {
+                DTRDao.updateStatus(dtrId, status);
+                JOptionPane.showMessageDialog(panel, "Status saved.");
+                loadDtr.run();
+            } catch (SQLException ex) { JOptionPane.showMessageDialog(panel, "Failed: " + ex.getMessage()); }
+        });
+
+        // Company-format DTR: title, DATE row (dates of period + Total + Remarks), then per-employee 7 rows (Reg, shp, lhp, A, LWP, O, RD)
+        DefaultTableModel companyModel = new DefaultTableModel(0, 0) { @Override public boolean isCellEditable(int r, int c) { return false; } };
+        JTable companyTable = new JTable(companyModel);
+        styleTable(companyTable);
+        JScrollPane companyScroll = new JScrollPane(companyTable);
+        companyScroll.setPreferredSize(new Dimension(0, 200));
+
+        Runnable loadCompanyDtr = () -> {
+            companyModel.setRowCount(0);
+            companyModel.setColumnCount(0);
+            try {
+                if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) return;
+                PayrollPeriodDao.PayrollPeriod p = (PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem();
+                if (p.startDate == null || p.endDate == null) return;
+                java.util.List<java.sql.Date> dates = new java.util.ArrayList<>();
+                long t = p.startDate.getTime();
+                long end = p.endDate.getTime();
+                while (t <= end) {
+                    dates.add(new java.sql.Date(t));
+                    t += 86400000L;
+                }
+                int numDates = dates.size();
+                int totalCols = 2 + numDates + 2; // Employee name, Type (Reg/shp/...), date1..dateN, Total, Remarks
+                companyModel.setColumnCount(totalCols);
+                String[] headers = new String[totalCols];
+                headers[0] = ""; headers[1] = "";
+                for (int i = 0; i < numDates; i++) headers[2 + i] = dates.get(i).toString();
+                headers[totalCols - 2] = "Total"; headers[totalCols - 1] = "Remarks";
+                companyModel.setColumnIdentifiers(headers);
+                Object[] dateRow = new Object[totalCols];
+                dateRow[0] = "DATE:"; dateRow[1] = "";
+                for (int i = 0; i < numDates; i++) dateRow[2 + i] = dates.get(i).toString();
+                dateRow[totalCols - 2] = ""; dateRow[totalCols - 1] = "";
+                companyModel.addRow(dateRow);
+                Integer fe = null;
+                try { fe = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) {}
+                if (!AppSession.isAdmin()) fe = AppSession.getEmployeeId();
+                final Integer filterEmpId = fe;
+                java.util.List<EmployeeDao.EmployeeRow> emps = EmployeeDao.findAll();
+                if (filterEmpId != null) emps = emps.stream().filter(emp -> emp.employeeId == filterEmpId).collect(java.util.stream.Collectors.toList());
+                for (EmployeeDao.EmployeeRow emp : emps) {
+                    if (!emp.isActive) continue;
+                    List<DTRDao.DTRRow> dtrRows = DTRDao.findByPeriodAndEmployee(p.periodId, emp.employeeId);
+                    java.util.Map<String, java.util.Map<java.sql.Date, String>> byType = new java.util.LinkedHashMap<>();
+                    for (String ty : DTR_TYPE_ROWS) byType.put(ty, new java.util.LinkedHashMap<>());
+                    for (DTRDao.DTRRow dr : dtrRows) {
+                        if (dr.dateVal == null) continue;
+                        java.math.BigDecimal reg = dr.regularHours != null ? dr.regularHours : java.math.BigDecimal.ZERO;
+                        java.math.BigDecimal ot = dr.overtimeHours != null ? dr.overtimeHours : java.math.BigDecimal.ZERO;
+                        String st = dr.status != null ? dr.status : "";
+                        byType.get("Reg").put(dr.dateVal, reg.compareTo(java.math.BigDecimal.ZERO) > 0 ? reg.toPlainString() : "");
+                        byType.get("O").put(dr.dateVal, ot.compareTo(java.math.BigDecimal.ZERO) > 0 ? ot.toPlainString() : "");
+                        if (st.equalsIgnoreCase("Absent")) byType.get("A").put(dr.dateVal, "1");
+                        else if (st.toLowerCase().contains("leave") || st.equalsIgnoreCase("LWP")) byType.get("LWP").put(dr.dateVal, "1");
+                    }
+                    for (int tyIdx = 0; tyIdx < DTR_TYPE_ROWS.length; tyIdx++) {
+                        Object[] row = new Object[totalCols];
+                        row[0] = (tyIdx == 0) ? emp.fullName : "";
+                        row[1] = DTR_TYPE_ROWS[tyIdx];
+                        for (int i = 0; i < numDates; i++) row[2 + i] = byType.get(DTR_TYPE_ROWS[tyIdx]).getOrDefault(dates.get(i), "");
+                        row[totalCols - 2] = ""; row[totalCols - 1] = "";
+                        companyModel.addRow(row);
+                    }
+                }
+            } catch (Exception ex) { /* ignore */ }
+        };
+        loadCompanyDtr.run();
+
+        JLabel companyTitle = new JLabel(DTR_TITLE);
+        companyTitle.setFont(new Font("SansSerif", Font.BOLD, 14));
+        JPanel companyNorth = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        companyNorth.setOpaque(false);
+        companyNorth.add(companyTitle);
+
+        JPanel center = new JPanel(new BorderLayout(5, 5));
+        center.setOpaque(false);
+        center.add(scroll, BorderLayout.NORTH);
+        center.add(companyNorth, BorderLayout.CENTER);
+        center.add(companyScroll, BorderLayout.SOUTH);
 
         panel.add(top, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
+        panel.add(center, BorderLayout.CENTER);
         return panel;
     }
 
@@ -1469,9 +1661,13 @@ public class page {
         top.add(btnExport);
         top.add(btnStatutoryRates);
 
-        // Table columns: statutory and government deductions (SSS, PhilHealth, PagIBIG) plus Loan, Cash Advance, Other — no Type dropdown in table.
-        String[] cols = {"Employee", "Period", "SSS", "PhilHealth", "PagIBIG", "Loan", "Cash Advance", "Other", "Total"};
-        DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
+        // Table: company format — Department, Employee Name, then deduction type columns, Total.
+        String[] dedCols = new String[2 + ReportExporter.DEDUCTION_TYPE_COLUMNS.length + 1];
+        dedCols[0] = "Department";
+        dedCols[1] = "Employee Name";
+        for (int i = 0; i < ReportExporter.DEDUCTION_TYPE_COLUMNS.length; i++) dedCols[2 + i] = ReportExporter.DEDUCTION_TYPE_COLUMNS[i];
+        dedCols[dedCols.length - 1] = "Total";
+        DefaultTableModel tblModel = new DefaultTableModel(dedCols, 0);
         JTable table = new JTable(tblModel);
         styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
@@ -1499,45 +1695,40 @@ public class page {
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
-        // Load deductions and group by employee+period; show one row per employee with statutory (SSS, PhilHealth, PagIBIG) and other columns.
+        // Load deductions in company format: getDeductionDetailForExportByDepartment, pivot by dept|empId|name.
         Runnable loadDed = () -> {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-                Integer empId = null;
-                if (!txtEmployeeId.getText().trim().isEmpty()) {
-                    try { empId = Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) { }
-                }
-                if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
-                List<DeductionDao.DeductionRow> list = DeductionDao.findByPeriodAndEmployee(periodId, empId);
-                Map<String, Map<String, BigDecimal>> byKey = new LinkedHashMap<>();
-                for (DeductionDao.DeductionRow r : list) {
-                    String key = r.employeeId + "\t" + r.fullName + "\t" + r.payrollPeriodId;
-                    byKey.computeIfAbsent(key, k -> new LinkedHashMap<>());
-                    String type = r.deductionType != null ? r.deductionType.trim() : "Other";
-                    BigDecimal val = r.amount != null ? r.amount : BigDecimal.ZERO;
-                    Map<String, BigDecimal> rowAmt = byKey.get(key);
-                    rowAmt.put(type, rowAmt.getOrDefault(type, BigDecimal.ZERO).add(val));
+                if (periodId == null) { tblModel.setRowCount(0); return; }
+                Integer filterEmpId = null;
+                try { filterEmpId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) {}
+                if (!AppSession.isAdmin()) filterEmpId = AppSession.getEmployeeId();
+                List<DeductionDao.DeductionExportRow> rows = DeductionDao.getDeductionDetailForExportByDepartment(periodId);
+                Map<String, Map<String, BigDecimal>> pivot = new LinkedHashMap<>();
+                for (DeductionDao.DeductionExportRow r : rows) {
+                    if (filterEmpId != null && r.employeeId != filterEmpId) continue;
+                    String key = r.departmentName + "|" + r.employeeId + "|" + r.employeeName;
+                    String type = ReportExporter.normalizeDeductionTypeForDisplay(r.deductionType);
+                    pivot.computeIfAbsent(key, k -> new LinkedHashMap<>()).merge(type, r.amount, BigDecimal::add);
                 }
                 tblModel.setRowCount(0);
-                for (Map.Entry<String, Map<String, BigDecimal>> e : byKey.entrySet()) {
-                    String[] parts = e.getKey().split("\t", 3);
-                    String name = parts.length >= 2 ? parts[1] : "";
-                    String periodStr = parts.length >= 3 ? parts[2] : (periodId != null ? String.valueOf(periodId) : "");
+                for (Map.Entry<String, Map<String, BigDecimal>> e : pivot.entrySet()) {
+                    String[] parts = e.getKey().split("\\|", 3);
+                    String dept = parts.length > 0 ? parts[0] : "";
+                    String name = parts.length > 2 ? parts[2] : "";
                     Map<String, BigDecimal> amt = e.getValue();
-                    BigDecimal sss = amt.getOrDefault("SSS", BigDecimal.ZERO);
-                    BigDecimal ph = amt.getOrDefault("PhilHealth", BigDecimal.ZERO);
-                    BigDecimal pag = amt.getOrDefault("PagIBIG", BigDecimal.ZERO);
-                    BigDecimal loan = amt.getOrDefault("Loan", BigDecimal.ZERO);
-                    BigDecimal ca = amt.getOrDefault("Cash Advance", BigDecimal.ZERO);
-                    BigDecimal other = BigDecimal.ZERO;
-                    for (Map.Entry<String, BigDecimal> te : amt.entrySet()) {
-                        String t = te.getKey();
-                        if (!t.equals("SSS") && !t.equals("PhilHealth") && !t.equals("PagIBIG") && !t.equals("Loan") && !t.equals("Cash Advance"))
-                            other = other.add(te.getValue());
+                    Object[] row = new Object[dedCols.length];
+                    row[0] = dept;
+                    row[1] = name;
+                    BigDecimal total = BigDecimal.ZERO;
+                    for (int i = 0; i < ReportExporter.DEDUCTION_TYPE_COLUMNS.length; i++) {
+                        BigDecimal v = amt.getOrDefault(ReportExporter.DEDUCTION_TYPE_COLUMNS[i], BigDecimal.ZERO);
+                        total = total.add(v);
+                        row[2 + i] = v.compareTo(BigDecimal.ZERO) == 0 ? "" : MONEY.format(v);
                     }
-                    BigDecimal total = sss.add(ph).add(pag).add(loan).add(ca).add(other);
-                    tblModel.addRow(new Object[]{ name, periodStr, MONEY.format(sss), MONEY.format(ph), MONEY.format(pag), MONEY.format(loan), MONEY.format(ca), MONEY.format(other), MONEY.format(total) });
+                    row[row.length - 1] = MONEY.format(total);
+                    tblModel.addRow(row);
                 }
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
@@ -1547,7 +1738,7 @@ public class page {
         cmbPeriod.addActionListener(e -> loadDed.run());
         txtEmployeeId.addActionListener(e -> loadDed.run());
         // Configure statutory rates: for when government/statutory deduction rates change. Next developer: implement rate storage (e.g. table or config) and apply when computing SSS, PhilHealth, PagIBIG.
-        btnStatutoryRates.addActionListener(e -> showStatutoryRatesPlaceholder(main));
+        btnStatutoryRates.addActionListener(ev -> showStatutoryRatesDialog(SwingUtilities.getWindowAncestor(main) != null ? (Window) SwingUtilities.getWindowAncestor(main) : null));
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
@@ -1619,8 +1810,9 @@ public class page {
         top.add(btnRefresh);
         top.add(btnExport);
 
-        String[] cols = {"ID", "Employee", "Period", "Basic", "OT", "Total", "Status"};
-        DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
+        // Table: company format — Department, Employee, Rate, Per hr, Hrs, Basic, Sick Leave, OT hrs, OT amount, Total.
+        String[] compCols = {"Department", "Employee", "Rate", "Per hr", "Hrs", "Basic", "Sick Leave", "OT hrs", "OT amount", "Total"};
+        DefaultTableModel tblModel = new DefaultTableModel(compCols, 0);
         JTable table = new JTable(tblModel);
         styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
@@ -1637,13 +1829,27 @@ public class page {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-                Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
-                if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
-                List<CompensationDao.CompensationRow> list = CompensationDao.findByPeriodAndEmployee(periodId, empId);
-                refreshTable(tblModel, cols, list, o -> {
-                    CompensationDao.CompensationRow r = (CompensationDao.CompensationRow) o;
-                    return new Object[]{ r.compensationId, r.fullName, r.payrollPeriodId, r.basicAmount != null ? MONEY.format(r.basicAmount) : "", r.overtimeAmount != null ? MONEY.format(r.overtimeAmount) : "", r.totalCompensation != null ? MONEY.format(r.totalCompensation) : "", r.hrStatus };
-                });
+                if (periodId == null) { tblModel.setRowCount(0); return; }
+                Integer filterEmpId = null;
+                try { filterEmpId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) {}
+                if (!AppSession.isAdmin()) filterEmpId = AppSession.getEmployeeId();
+                List<CompensationDao.CompensationExportRow> list = CompensationDao.findByPeriodWithDepartment(periodId);
+                tblModel.setRowCount(0);
+                for (CompensationDao.CompensationExportRow r : list) {
+                    if (filterEmpId != null && r.employeeId != filterEmpId) continue;
+                    tblModel.addRow(new Object[]{
+                        r.departmentName != null ? r.departmentName : "",
+                        r.fullName != null ? r.fullName : "",
+                        r.basicSalary != null ? MONEY.format(r.basicSalary) : "",
+                        r.hourlyRate != null ? MONEY.format(r.hourlyRate) : "",
+                        r.basicHours != null ? MONEY.format(r.basicHours) : "",
+                        r.basicAmount != null ? MONEY.format(r.basicAmount) : "",
+                        "", // Sick Leave - not in CompensationExportRow
+                        r.overtimeHours != null ? MONEY.format(r.overtimeHours) : "",
+                        r.overtimeAmount != null ? MONEY.format(r.overtimeAmount) : "",
+                        r.totalCompensation != null ? MONEY.format(r.totalCompensation) : ""
+                    });
+                }
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();

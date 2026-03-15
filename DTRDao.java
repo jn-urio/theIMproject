@@ -74,6 +74,16 @@ public class DTRDao {
         }
     }
 
+    /** Update status of an existing DTR row by dtr_id. */
+    public static void updateStatus(int dtrId, String status) throws SQLException {
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement("UPDATE DTR SET status=? WHERE dtr_id=?")) {
+            ps.setString(1, status);
+            ps.setInt(2, dtrId);
+            ps.executeUpdate();
+        }
+    }
+
     public static void insert(int employeeId, Date dateVal, Time timeIn, Time timeOut, java.math.BigDecimal regularHours, java.math.BigDecimal overtimeHours, String status) throws SQLException {
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(
