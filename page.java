@@ -1556,16 +1556,10 @@ public class page {
         btnExport.setForeground(TEXT_DARK);
         btnStatutoryRates.setBackground(GOLDEN);
         btnStatutoryRates.setForeground(TEXT_DARK);
-        JTextField txtEmployeeId = new JTextField(8);
-        Integer sessionEmpId = AppSession.getEmployeeId();
-        txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
-        txtEmployeeId.setEditable(AppSession.isAdmin());
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setOpaque(false);
         top.add(new JLabel("Period:"));
         top.add(cmbPeriod);
-        top.add(new JLabel("Employee ID:"));
-        top.add(txtEmployeeId);
         top.add(btnRefresh);
         top.add(btnExport);
         top.add(btnStatutoryRates);
@@ -1598,11 +1592,7 @@ public class page {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-                Integer empId = null;
-                if (!txtEmployeeId.getText().trim().isEmpty()) {
-                    try { empId = Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) { }
-                }
-                if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
+                Integer empId = AppSession.isAdmin() ? null : AppSession.getEmployeeId();
                 List<DeductionDao.DeductionRow> list = DeductionDao.findByPeriodAndEmployee(periodId, empId);
                 Map<String, Map<String, BigDecimal>> byKey = new LinkedHashMap<>();
                 for (DeductionDao.DeductionRow r : list) {
@@ -1637,18 +1627,14 @@ public class page {
         };
         loadPeriods.run();
         loadDed.run();
-        Runnable syncEmpIdToForm = () -> fEmpId.setText(txtEmployeeId.getText().trim());
-        btnRefresh.addActionListener(e -> { syncEmpIdToForm.run(); loadDed.run(); });
+        btnRefresh.addActionListener(e -> loadDed.run());
         cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); loadDed.run(); });
-        syncEmpIdToForm.run();
-        txtEmployeeId.addActionListener(e -> { syncEmpIdToForm.run(); loadDed.run(); });
         // Configure statutory rates: for when government/statutory deduction rates change. Next developer: implement rate storage (e.g. table or config) and apply when computing SSS, PhilHealth, PagIBIG.
         btnStatutoryRates.addActionListener(ev -> showStatutoryRatesDialog(SwingUtilities.getWindowAncestor(main)));
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-            Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
-            if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
+            Integer empId = AppSession.isAdmin() ? null : AppSession.getEmployeeId();
             ReportExporter.exportEmployeeDeductionsToExcel(main, periodId, empId, empId != null ? ("EMP" + empId) : "ALL");
         });
 
@@ -1664,7 +1650,7 @@ public class page {
                 if (!AppSession.isAdmin() && AppSession.getEmployeeId() != null) empId = AppSession.getEmployeeId();
                 DeductionDao.insert(empId, periodId, String.valueOf(fType.getSelectedItem()).trim(),
                     new BigDecimal(fAmount.getText().trim()), fDesc.getText(), "active", AppSession.getHrUserId());
-                loadDed.run();
+                loadDed.run(); // Reload all rows for period so new entry appears (add row, not replace)
                 try {
                     lblTotal.setText("Total: " + MONEY.format(DeductionDao.totalByPeriod(periodId)));
                 } catch (SQLException ignored) {}
@@ -1702,16 +1688,10 @@ public class page {
         JButton btnExport = new JButton("Export report to CSV");
         btnExport.setBackground(new Color(0, 102, 204));
         btnExport.setForeground(TEXT_DARK);
-        JTextField txtEmployeeId = new JTextField(8);
-        Integer sessionEmpId = AppSession.getEmployeeId();
-        txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
-        txtEmployeeId.setEditable(AppSession.isAdmin());
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setOpaque(false);
         top.add(new JLabel("Period:"));
         top.add(cmbPeriod);
-        top.add(new JLabel("Employee ID:"));
-        top.add(txtEmployeeId);
         top.add(btnRefresh);
         top.add(btnExport);
 
@@ -1726,8 +1706,7 @@ public class page {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-                Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
-                if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
+                Integer empId = AppSession.isAdmin() ? null : AppSession.getEmployeeId();
                 List<CompensationDao.CompensationRow> list = CompensationDao.findByPeriodAndEmployee(periodId, empId);
                 refreshTable(tblModel, cols, list, o -> {
                     CompensationDao.CompensationRow r = (CompensationDao.CompensationRow) o;
@@ -1737,12 +1716,12 @@ public class page {
         };
         loadPeriods.run();
         load.run();
+        btnRefresh.addActionListener(e -> load.run());
         cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); load.run(); });
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-            Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
-            if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
+            Integer empId = AppSession.isAdmin() ? null : AppSession.getEmployeeId();
             ReportExporter.exportEmployeeCompensationToExcel(main, periodId, empId, empId != null ? ("EMP" + empId) : "ALL");
         });
 
@@ -1762,10 +1741,6 @@ public class page {
         JButton btnAdd = new JButton("Add");
         btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
-        Runnable syncEmpIdToFormComp = () -> fEmpId.setText(txtEmployeeId.getText().trim());
-        syncEmpIdToFormComp.run();
-        btnRefresh.addActionListener(e -> { syncEmpIdToFormComp.run(); load.run(); });
-        txtEmployeeId.addActionListener(e -> { syncEmpIdToFormComp.run(); load.run(); });
         btnAdd.addActionListener(e -> {
             try {
                 if (cmbPeriod.getSelectedItem() == null || !(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
@@ -1778,7 +1753,7 @@ public class page {
                 BigDecimal otA = fOTA.getText().trim().isEmpty() ? null : new BigDecimal(fOTA.getText());
                 BigDecimal total = fTotal.getText().trim().isEmpty() ? null : new BigDecimal(fTotal.getText());
                 CompensationDao.insert(Integer.parseInt(fEmpId.getText()), periodId, null, AppSession.getHrUserId(), basicH, basicA, otH, otA, total, "draft");
-                load.run();
+                load.run(); // Reload all rows for period so new entry appears (add row, not replace)
                 fEmpId.setText(""); fBasicH.setText(""); fBasicA.setText(""); fOTH.setText(""); fOTA.setText(""); fTotal.setText("");
             } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
@@ -1826,7 +1801,7 @@ public class page {
 
         JButton btnDeduction = new JButton("Export Deduction Summary (company format)");
         btnDeduction.setBackground(new Color(0, 102, 204));
-        btnDeduction.setForeground(Color.WHITE);
+        btnDeduction.setForeground(TEXT_DARK);
         btnDeduction.addActionListener(e -> {
             if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
                 JOptionPane.showMessageDialog(main, "Select a payroll period first."); return;
@@ -1837,7 +1812,7 @@ public class page {
 
         JButton btnCompensation = new JButton("Export Compensation Summary (company format)");
         btnCompensation.setBackground(new Color(0, 102, 204));
-        btnCompensation.setForeground(Color.WHITE);
+        btnCompensation.setForeground(TEXT_DARK);
         btnCompensation.addActionListener(e -> {
             if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
                 JOptionPane.showMessageDialog(main, "Select a payroll period first."); return;
@@ -1848,7 +1823,7 @@ public class page {
 
         JButton btnLedger = new JButton("Export Signature Ledger");
         btnLedger.setBackground(new Color(0, 102, 204));
-        btnLedger.setForeground(Color.WHITE);
+        btnLedger.setForeground(TEXT_DARK);
         btnLedger.addActionListener(e -> {
             if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
                 JOptionPane.showMessageDialog(main, "Select a payroll period first."); return;
@@ -1859,7 +1834,7 @@ public class page {
 
         JButton btnFunding = new JButton("Export Payroll Funding (bank list)");
         btnFunding.setBackground(new Color(0, 102, 204));
-        btnFunding.setForeground(Color.WHITE);
+        btnFunding.setForeground(TEXT_DARK);
         btnFunding.addActionListener(e -> {
             if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
                 JOptionPane.showMessageDialog(main, "Select a payroll period first."); return;
@@ -1871,7 +1846,7 @@ public class page {
 
         JButton btn13th = new JButton("Export 13th Month (quarter)");
         btn13th.setBackground(new Color(0, 102, 204));
-        btn13th.setForeground(Color.WHITE);
+        btn13th.setForeground(TEXT_DARK);
         btn13th.addActionListener(e -> {
             if (!(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod) || !(cmbPeriodEnd.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
                 JOptionPane.showMessageDialog(main, "Select start and end payroll periods for the quarter."); return;
