@@ -224,15 +224,6 @@ public class page {
 
     private interface RowMapper { Object[] toRow(Object o); }
 
-    /**
-     * Opens the Full Employee Information dialog for the given employee.
-     * Shows read-only fields (ID, code, name, legal/SSS) and editable fields (dept, position, pay, active).
-     * Save button updates only the editable fields. Add/Register new employee is a placeholder for the next developer.
-     *
-     * @param parent       parent frame for the dialog
-     * @param employeeId   selected employee ID (from table)
-     * @param onSaved      optional callback to refresh the employee list after save (can be null)
-     */
     /** Add new employee with role: form then EmployeeDao.insert + EmployeeRoleDao.insert. onAdded called after success to refresh list. */
     private static void showAddNewEmployeePlaceholder(Component parent, Runnable onAdded) {
         JDialog dlg = new JDialog(SwingUtilities.windowForComponent(parent), "Add New Employee", Dialog.ModalityType.APPLICATION_MODAL);
@@ -660,39 +651,6 @@ public class page {
             } catch (Exception ex) { /* database unavailable */ }
         };
 
-        loadPeriods.run();
-        loadDtr.run();
-        btnRefresh.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
-        cmbPeriod.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
-        txtEmployeeId.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
-
-        btnExportDTR.addActionListener(e -> {
-            Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-            Integer empId = null;
-            try { empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) {}
-            if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
-            if (empId == null) { JOptionPane.showMessageDialog(panel, "Select an employee."); return; }
-            String name = null;
-            try { EmployeeDao.Employee emp = EmployeeDao.findById(empId); if (emp != null) name = emp.fullName; } catch (SQLException ignored) {}
-            ReportExporter.exportDTRToCsv(panel, empId, name, periodId);
-        });
-
-        btnSaveStatus.addActionListener(e -> {
-            int row = table.getSelectedRow();
-            if (row < 0) { JOptionPane.showMessageDialog(panel, "Select a DTR row to update status."); return; }
-            Object idObj = model.getValueAt(row, 0);
-            Object statusObj = model.getValueAt(row, 7);
-            if (!(idObj instanceof Number) || statusObj == null) return;
-            int dtrId = ((Number) idObj).intValue();
-            String status = String.valueOf(statusObj).trim();
-            if (status.isEmpty()) status = "Present";
-            try {
-                DTRDao.updateStatus(dtrId, status);
-                JOptionPane.showMessageDialog(panel, "Status saved.");
-                loadDtr.run();
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(panel, "Failed: " + ex.getMessage()); }
-        });
-
         // Company-format DTR: title, DATE row (dates of period + Total + Remarks), then per-employee 7 rows (Reg, shp, lhp, A, LWP, O, RD)
         DefaultTableModel companyModel = new DefaultTableModel(0, 0) { @Override public boolean isCellEditable(int r, int c) { return false; } };
         JTable companyTable = new JTable(companyModel);
@@ -759,6 +717,40 @@ public class page {
                 }
             } catch (Exception ex) { /* ignore */ }
         };
+
+        loadPeriods.run();
+        loadDtr.run();
+        btnRefresh.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
+        cmbPeriod.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
+        txtEmployeeId.addActionListener(e -> { loadDtr.run(); loadCompanyDtr.run(); });
+
+        btnExportDTR.addActionListener(e -> {
+            Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
+            Integer empId = null;
+            try { empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) {}
+            if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
+            if (empId == null) { JOptionPane.showMessageDialog(panel, "Select an employee."); return; }
+            String name = null;
+            try { EmployeeDao.Employee emp = EmployeeDao.findById(empId); if (emp != null) name = emp.fullName; } catch (SQLException ignored) {}
+            ReportExporter.exportDTRToCsv(panel, empId, name, periodId);
+        });
+
+        btnSaveStatus.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { JOptionPane.showMessageDialog(panel, "Select a DTR row to update status."); return; }
+            Object idObj = model.getValueAt(row, 0);
+            Object statusObj = model.getValueAt(row, 7);
+            if (!(idObj instanceof Number) || statusObj == null) return;
+            int dtrId = ((Number) idObj).intValue();
+            String status = String.valueOf(statusObj).trim();
+            if (status.isEmpty()) status = "Present";
+            try {
+                DTRDao.updateStatus(dtrId, status);
+                JOptionPane.showMessageDialog(panel, "Status saved.");
+                loadDtr.run();
+            } catch (SQLException ex) { JOptionPane.showMessageDialog(panel, "Failed: " + ex.getMessage()); }
+        });
+
         loadCompanyDtr.run();
 
         JLabel companyTitle = new JLabel(DTR_TITLE);
@@ -1738,7 +1730,7 @@ public class page {
         cmbPeriod.addActionListener(e -> loadDed.run());
         txtEmployeeId.addActionListener(e -> loadDed.run());
         // Configure statutory rates: for when government/statutory deduction rates change. Next developer: implement rate storage (e.g. table or config) and apply when computing SSS, PhilHealth, PagIBIG.
-        btnStatutoryRates.addActionListener(ev -> showStatutoryRatesDialog(SwingUtilities.getWindowAncestor(main) != null ? (Window) SwingUtilities.getWindowAncestor(main) : null));
+        btnStatutoryRates.addActionListener(ev -> showStatutoryRatesDialog(SwingUtilities.getWindowAncestor(main)));
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
