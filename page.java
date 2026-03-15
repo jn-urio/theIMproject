@@ -33,6 +33,8 @@ public class page {
     private static final Color TABLE_HEADER_BG = new Color(0x5E, 0x71, 0x4B);
     /** All UI text: black or this dark grey for consistency. */
     private static final Color TEXT_DARK = new Color(0x2D, 0x2D, 0x2D);
+    /** Current payroll period ID; shared so all period dropdowns reflect the same selection. */
+    private static Integer currentPeriodId = null;
 
     public static void main(String[] args) {
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
@@ -224,6 +226,49 @@ public class page {
 
     private interface RowMapper { Object[] toRow(Object o); }
 
+    /** User-friendly message for save/DB errors; avoids showing long driver messages like "Communications link failure". */
+    private static String friendlySaveError(Throwable ex) {
+        if (ex == null) return "Save failed.";
+        String msg = ex.getMessage() != null ? ex.getMessage() : "";
+        if (msg.contains("Communications link failure") || msg.contains("packets from the server") || msg.contains("Connection refused"))
+            return "Save failed. Check that the database server is running and reachable.";
+        if (msg.contains("Unknown database") || msg.contains("Access denied"))
+            return "Save failed. Check database name and credentials.";
+        return "Save failed.";
+    }
+
+    /** Populate period combo and select current period (or first). Use for every period dropdown. */
+    private static void loadPeriodComboAndSelectCurrent(JComboBox<PayrollPeriodDao.PayrollPeriod> cmb) {
+        try {
+            cmb.removeAllItems();
+            cmb.addItem(null);
+            List<PayrollPeriodDao.PayrollPeriod> list = PayrollPeriodDao.findAll();
+            for (PayrollPeriodDao.PayrollPeriod p : list) cmb.addItem(p);
+            if (cmb.getItemCount() > 1) {
+                if (currentPeriodId != null) {
+                    for (int i = 1; i < cmb.getItemCount(); i++) {
+                        Object item = cmb.getItemAt(i);
+                        if (item instanceof PayrollPeriodDao.PayrollPeriod && ((PayrollPeriodDao.PayrollPeriod) item).periodId == currentPeriodId) {
+                            cmb.setSelectedIndex(i);
+                            return;
+                        }
+                    }
+                }
+                cmb.setSelectedIndex(1);
+                Object sel = cmb.getSelectedItem();
+                if (sel instanceof PayrollPeriodDao.PayrollPeriod)
+                    currentPeriodId = ((PayrollPeriodDao.PayrollPeriod) sel).periodId;
+            }
+        } catch (SQLException ex) { /* ignore */ }
+    }
+
+    /** Call from period combo action listener so changing period in one page reflects everywhere. */
+    private static void updateCurrentPeriodFromCombo(JComboBox<PayrollPeriodDao.PayrollPeriod> cmb) {
+        Object o = cmb.getSelectedItem();
+        if (o instanceof PayrollPeriodDao.PayrollPeriod)
+            currentPeriodId = ((PayrollPeriodDao.PayrollPeriod) o).periodId;
+    }
+
     /**
      * Opens the Full Employee Information dialog for the given employee.
      * Shows read-only fields (ID, code, name, legal/SSS) and editable fields (dept, position, pay, active).
@@ -263,14 +308,60 @@ public class page {
         addLabeledField(center, "Daily rate:", fDaily, g);
         addLabeledField(center, "Hourly rate:", fHourly, g);
         addLabeledField(center, "Bank account:", fBank, g);
-        addLabeledField(center, "Department:", fDept, g);
+        Runnable loadDepts = () -> {
+            try {
+                String selected = (String) fDept.getSelectedItem();
+                fDept.removeAllItems();
+                fDept.addItem("");
+                for (DepartmentDao.Department d : DepartmentDao.findAll()) fDept.addItem(d.departmentName);
+                if (selected != null && !selected.isEmpty()) fDept.setSelectedItem(selected);
+            } catch (SQLException ex) { /* ignore */ }
+        };
+        loadDepts.run();
+        JButton btnAddDept = new JButton("Add department");
+        btnAddDept.setBackground(SAGE);
+        btnAddDept.setForeground(TEXT_DARK);
+        btnAddDept.addActionListener(ev -> {
+            JPanel p = new JPanel(new GridBagLayout());
+            GridBagConstraints gd = new GridBagConstraints();
+            gd.fill = GridBagConstraints.HORIZONTAL;
+            gd.insets = new Insets(4, 8, 4, 8);
+            gd.gridy = 0;
+            JTextField fDeptCode = new JTextField(12);
+            JTextField fDeptName = new JTextField(20);
+            gd.gridx = 0; p.add(new JLabel("Code:"), gd);
+            gd.gridx = 1; p.add(fDeptCode, gd);
+            gd.gridy++;
+            gd.gridx = 0; p.add(new JLabel("Name:"), gd);
+            gd.gridx = 1; p.add(fDeptName, gd);
+            int choice = JOptionPane.showConfirmDialog(dlg, p, "New Department", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (choice != JOptionPane.OK_OPTION) return;
+            String code = fDeptCode.getText().trim();
+            String name = fDeptName.getText().trim();
+            if (code.isEmpty() || name.isEmpty()) {
+                JOptionPane.showMessageDialog(dlg, "Code and name are required.");
+                return;
+            }
+            try {
+                DepartmentDao.insert(code, name);
+                loadDepts.run();
+                fDept.setSelectedItem(name);
+                JOptionPane.showMessageDialog(dlg, "Department added.");
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(dlg, friendlySaveError(ex));
+            }
+        });
+        g.gridx = 0; g.gridwidth = 1; center.add(new JLabel("Department:"), g);
+        g.gridx = 1; g.weightx = 1.0;
+        JPanel deptRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        deptRow.setOpaque(false);
+        deptRow.add(fDept);
+        deptRow.add(btnAddDept);
+        center.add(deptRow, g);
+        g.gridy++;
+        g.weightx = 0;
         addLabeledField(center, "Role type:", fRoleType, g);
-        g.gridx = 0; g.gridwidth = 2; center.add(fActive, g);
-
-        try {
-            fDept.addItem("");
-            for (DepartmentDao.Department d : DepartmentDao.findAll()) fDept.addItem(d.departmentName);
-        } catch (SQLException ex) { /* ignore */ }
+        g.gridx = 0; g.gridwidth = 2; g.weightx = 0; center.add(fActive, g);
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         JButton btnAdd = new JButton("Add");
@@ -289,10 +380,18 @@ public class page {
                 JOptionPane.showMessageDialog(dlg, "Please select a department.");
                 return;
             }
+            BigDecimal basic;
+            BigDecimal daily;
+            BigDecimal hourly;
             try {
-                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
-                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
-                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
+                basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
+                daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
+                hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(dlg, "Enter valid numbers for Basic salary, Daily rate, and Hourly rate (or leave them empty).");
+                return;
+            }
+            try {
                 int newId = EmployeeDao.insert(code, name, basic, daily, hourly, fBank.getText().trim(), fActive.isSelected());
                 int deptId = -1;
                 for (DepartmentDao.Department d : DepartmentDao.findAll()) {
@@ -303,7 +402,15 @@ public class page {
                 dlg.dispose();
                 if (onAdded != null) onAdded.run();
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(dlg, "Save failed: " + ex.getMessage());
+                String msg = ex.getMessage() != null ? ex.getMessage() : "";
+                if (msg.contains("Duplicate") || msg.contains("UNIQUE") || msg.contains("employee_code"))
+                    JOptionPane.showMessageDialog(dlg, "An employee with this code already exists. Use a unique employee code.");
+                else {
+                    String friendly = friendlySaveError(ex);
+                    boolean isGeneric = "Save failed.".equals(friendly);
+                    String detail = isGeneric && msg.length() > 0 ? (msg.length() <= 120 ? msg : msg.substring(0, 117) + "...") : "";
+                    JOptionPane.showMessageDialog(dlg, detail.isEmpty() ? friendly : friendly + "\n(" + detail + ")");
+                }
             }
         });
         btnCancel.addActionListener(e -> dlg.dispose());
@@ -363,13 +470,11 @@ public class page {
 
         JPanel applyPanel = createGroupPanel("Apply for period");
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
+        loadPeriodComboAndSelectCurrent(cmbPeriod);
+        cmbPeriod.addActionListener(e -> updateCurrentPeriodFromCombo(cmbPeriod));
         JButton btnApplyPagibig = new JButton("Add Pag-IBIG deduction for all employees (period)");
         btnApplyPagibig.setBackground(GOLDEN);
         btnApplyPagibig.setForeground(TEXT_DARK);
-        try {
-            cmbPeriod.addItem(null);
-            for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-        } catch (SQLException ex) { /* ignore */ }
         addLabeledField(applyPanel, "Payroll period:", cmbPeriod);
         applyPanel.add(btnApplyPagibig);
         btnApplyPagibig.addActionListener(e -> {
@@ -389,7 +494,7 @@ public class page {
                     count++;
                 }
                 JOptionPane.showMessageDialog(dlg, "Added Pag-IBIG deduction for " + count + " employees.");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(dlg, "Failed: " + ex.getMessage()); }
+            } catch (SQLException ex) { JOptionPane.showMessageDialog(dlg, friendlySaveError(ex)); }
         });
 
         JPanel north = new JPanel(new BorderLayout(10, 10));
@@ -518,7 +623,7 @@ public class page {
                 if (onSaved != null) onSaved.run();
                 JOptionPane.showMessageDialog(dlg, "Saved.");
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(dlg, "Save failed: " + ex.getMessage());
+                JOptionPane.showMessageDialog(dlg, friendlySaveError(ex));
             }
         });
         btnClose.addActionListener(e -> dlg.dispose());
@@ -624,14 +729,7 @@ public class page {
         JScrollPane scroll = new JScrollPane(table);
         scroll.setPreferredSize(new Dimension(0, 220));
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { /* database unavailable */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         Runnable loadDtr = () -> {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
@@ -650,7 +748,7 @@ public class page {
         loadPeriods.run();
         loadDtr.run();
         btnLoad.addActionListener(e -> loadDtr.run());
-        cmbPeriod.addActionListener(e -> loadDtr.run());
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); loadDtr.run(); });
 
         panel.add(top, BorderLayout.NORTH);
         panel.add(scroll, BorderLayout.CENTER);
@@ -1085,7 +1183,7 @@ public class page {
                     fAddHours.setText(""); fAddNotes.setText("");
                     refreshBalance.run();
                 } catch (NumberFormatException ex) { JOptionPane.showMessageDialog(main, "Enter a valid number for hours."); }
-                catch (SQLException ex) { JOptionPane.showMessageDialog(main, "Failed: " + ex.getMessage()); }
+                catch (SQLException ex) { JOptionPane.showMessageDialog(main, friendlySaveError(ex)); }
             });
             left.add(addForm);
             left.add(Box.createVerticalStrut(15));
@@ -1123,7 +1221,7 @@ public class page {
                 fReqHours.setText(""); refreshRequestsTable.run();
                 if (!admin) refreshBalance.run();
             } catch (NumberFormatException ex) { JOptionPane.showMessageDialog(main, "Enter a valid number for hours."); }
-            catch (SQLException ex) { JOptionPane.showMessageDialog(main, "Invalid date or failed: " + ex.getMessage()); }
+            catch (SQLException ex) { JOptionPane.showMessageDialog(main, friendlySaveError(ex)); }
         });
         left.add(reqForm);
 
@@ -1161,7 +1259,7 @@ public class page {
                     JOptionPane.showMessageDialog(main, "Approved.");
                     refreshRequestsTable.run();
                     refreshBalance.run();
-                } catch (SQLException ex) { JOptionPane.showMessageDialog(main, "Failed: " + ex.getMessage()); }
+                } catch (SQLException ex) { JOptionPane.showMessageDialog(main, friendlySaveError(ex)); }
             });
             btnReject.addActionListener(e -> {
                 int row = reqTable.getSelectedRow();
@@ -1172,7 +1270,7 @@ public class page {
                     OffsetDao.rejectRequest(((Number) idObj).intValue());
                     JOptionPane.showMessageDialog(main, "Rejected.");
                     refreshRequestsTable.run();
-                } catch (SQLException ex) { JOptionPane.showMessageDialog(main, "Failed: " + ex.getMessage()); }
+                } catch (SQLException ex) { JOptionPane.showMessageDialog(main, friendlySaveError(ex)); }
             });
         }
 
@@ -1224,15 +1322,7 @@ public class page {
         btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll())
-                    cmbPeriod.addItem(p);
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         Runnable loadEmployees = () -> {
             try {
                 cmbEmployee.removeAllItems();
@@ -1258,7 +1348,7 @@ public class page {
         loadEmployees.run();
         loadDTR.run();
         btnRefresh.addActionListener(e -> loadDTR.run());
-        cmbPeriod.addActionListener(e -> loadDTR.run());
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); loadDTR.run(); });
         cmbEmployee.addActionListener(e -> loadDTR.run());
 
         btnAdd.addActionListener(e -> {
@@ -1402,14 +1492,7 @@ public class page {
         btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         Runnable loadList = () -> {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
@@ -1424,7 +1507,7 @@ public class page {
         loadPeriods.run();
         loadList.run();
         btnRefresh.addActionListener(e -> loadList.run());
-        cmbPeriod.addActionListener(e -> loadList.run());
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); loadList.run(); });
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
@@ -1509,14 +1592,7 @@ public class page {
         btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         // Load deductions and group by employee+period; show one row per employee with statutory (SSS, PhilHealth, PagIBIG) and other columns.
         Runnable loadDed = () -> {
             try {
@@ -1561,9 +1637,11 @@ public class page {
         };
         loadPeriods.run();
         loadDed.run();
-        btnRefresh.addActionListener(e -> loadDed.run());
-        cmbPeriod.addActionListener(e -> loadDed.run());
-        txtEmployeeId.addActionListener(e -> loadDed.run());
+        Runnable syncEmpIdToForm = () -> fEmpId.setText(txtEmployeeId.getText().trim());
+        btnRefresh.addActionListener(e -> { syncEmpIdToForm.run(); loadDed.run(); });
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); loadDed.run(); });
+        syncEmpIdToForm.run();
+        txtEmployeeId.addActionListener(e -> { syncEmpIdToForm.run(); loadDed.run(); });
         // Configure statutory rates: for when government/statutory deduction rates change. Next developer: implement rate storage (e.g. table or config) and apply when computing SSS, PhilHealth, PagIBIG.
         btnStatutoryRates.addActionListener(ev -> showStatutoryRatesDialog(SwingUtilities.getWindowAncestor(main)));
         btnExport.addActionListener(e -> {
@@ -1643,14 +1721,7 @@ public class page {
         styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         Runnable load = () -> {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
@@ -1666,9 +1737,7 @@ public class page {
         };
         loadPeriods.run();
         load.run();
-        btnRefresh.addActionListener(e -> load.run());
-        cmbPeriod.addActionListener(e -> load.run());
-        txtEmployeeId.addActionListener(e -> load.run());
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); load.run(); });
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
@@ -1693,6 +1762,10 @@ public class page {
         JButton btnAdd = new JButton("Add");
         btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
+        Runnable syncEmpIdToFormComp = () -> fEmpId.setText(txtEmployeeId.getText().trim());
+        syncEmpIdToFormComp.run();
+        btnRefresh.addActionListener(e -> { syncEmpIdToFormComp.run(); load.run(); });
+        txtEmployeeId.addActionListener(e -> { syncEmpIdToFormComp.run(); load.run(); });
         btnAdd.addActionListener(e -> {
             try {
                 if (cmbPeriod.getSelectedItem() == null || !(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) {
@@ -1740,20 +1813,12 @@ public class page {
         top.add(cmbPeriodEnd);
 
         Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriodEnd.removeAllItems();
-                cmbPeriod.addItem(null);
-                cmbPeriodEnd.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) {
-                    cmbPeriod.addItem(p);
-                    cmbPeriodEnd.addItem(p);
-                }
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-                if (cmbPeriodEnd.getItemCount() > 1) cmbPeriodEnd.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            loadPeriodComboAndSelectCurrent(cmbPeriod);
+            loadPeriodComboAndSelectCurrent(cmbPeriodEnd);
         };
         loadPeriods.run();
+        cmbPeriod.addActionListener(e -> updateCurrentPeriodFromCombo(cmbPeriod));
+        cmbPeriodEnd.addActionListener(e -> updateCurrentPeriodFromCombo(cmbPeriodEnd));
 
         JPanel center = new JPanel(new GridLayout(0, 1, 10, 10));
         center.setOpaque(false);
@@ -1820,7 +1885,7 @@ public class page {
             java.sql.Date qEnd = endP.startDate.after(startP.startDate) ? endP.startDate : startP.startDate;
             try {
                 ReportExporter.export13thMonth(main, qStart, qEnd);
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (Exception ex) { JOptionPane.showMessageDialog(main, friendlySaveError(ex)); }
         });
 
         center.add(btnDeduction);
@@ -1855,14 +1920,7 @@ public class page {
         styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-                if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         Runnable load = () -> {
             try {
                 if (cmbPeriod.getSelectedItem() == null || !(cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod)) return;
@@ -1877,7 +1935,7 @@ public class page {
         loadPeriods.run();
         load.run();
         btnRefresh.addActionListener(e -> load.run());
-        cmbPeriod.addActionListener(e -> load.run());
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); load.run(); });
 
         JPanel north = new JPanel(new BorderLayout());
         north.setOpaque(false);
@@ -1911,13 +1969,7 @@ public class page {
         styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
-        Runnable loadPeriods = () -> {
-            try {
-                cmbPeriod.removeAllItems();
-                cmbPeriod.addItem(null);
-                for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-            } catch (SQLException ex) { /* database unavailable - show empty data */ }
-        };
+        Runnable loadPeriods = () -> loadPeriodComboAndSelectCurrent(cmbPeriod);
         Runnable loadDepts = () -> {
             try {
                 cmbDept.removeAllItems();
@@ -1940,7 +1992,7 @@ public class page {
         loadDepts.run();
         load.run();
         btnRefresh.addActionListener(e -> load.run());
-        cmbPeriod.addActionListener(e -> load.run());
+        cmbPeriod.addActionListener(e -> { updateCurrentPeriodFromCombo(cmbPeriod); load.run(); });
         cmbDept.addActionListener(e -> load.run());
 
         JPanel north = new JPanel(new BorderLayout());
