@@ -41,6 +41,19 @@ public class PayrollPeriodDao {
         }
     }
 
+    public static void update(int periodId, String name, Date start, Date end, Date payDate, String status) throws SQLException {
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement("UPDATE PayrollPeriod SET period_name=?, start_date=?, end_date=?, pay_date=?, status=? WHERE period_id=?")) {
+            ps.setString(1, name);
+            ps.setDate(2, start);
+            ps.setDate(3, end);
+            ps.setDate(4, payDate);
+            ps.setString(5, status);
+            ps.setInt(6, periodId);
+            ps.executeUpdate();
+        }
+    }
+
     public static class PayrollPeriod {
         public final int periodId;
         public final String periodName;

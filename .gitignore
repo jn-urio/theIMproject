@@ -1,0 +1,15 @@
+# Database config (contains credentials)
+config.properties
+
+# Compiled classes
+*.class
+
+# JAR build output
+payroll-app.jar
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

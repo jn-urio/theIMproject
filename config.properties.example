@@ -1,0 +1,7 @@
+# Database connection (optional). Copy to config.properties and edit.
+# If config.properties is missing, the app uses defaults: localhost, root, no password.
+db.host=localhost
+db.port=3306
+db.name=payroll
+db.user=root
+db.password=
