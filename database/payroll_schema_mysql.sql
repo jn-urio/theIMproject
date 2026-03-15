@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS Employee (
   basic_salary  DECIMAL(18,2),
   daily_rate    DECIMAL(18,2),
   hourly_rate   DECIMAL(18,2),
+  bank_account  VARCHAR(50),
   is_active     TINYINT(1) DEFAULT 1
 );
 
@@ -67,16 +68,39 @@ CREATE TABLE IF NOT EXISTS PayrollPeriod (
   status      VARCHAR(50)
 );
 
--- Daily Time Record
+-- Daily Time Record (regular_hours = worked; offset_hours_used = hours covered by offset so no absence; effective = regular + offset_used)
 CREATE TABLE IF NOT EXISTS DTR (
-  dtr_id          INT AUTO_INCREMENT PRIMARY KEY,
-  employee_id     INT NOT NULL,
-  date_val        DATE,
-  time_in         TIME,
-  time_out        TIME,
-  regular_hours   DECIMAL(10,2),
-  overtime_hours  DECIMAL(10,2),
-  status          VARCHAR(50),
+  dtr_id            INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id       INT NOT NULL,
+  date_val          DATE,
+  time_in           TIME,
+  time_out          TIME,
+  regular_hours     DECIMAL(10,2),
+  overtime_hours    DECIMAL(10,2),
+  offset_hours_used DECIMAL(10,2) DEFAULT 0,
+  status            VARCHAR(50),
+  FOREIGN KEY (employee_id) REFERENCES Employee(employee_id)
+);
+
+-- Offset balance per employee (earned when OT is converted to offset instead of pay)
+CREATE TABLE IF NOT EXISTS OffsetBalance (
+  employee_id   INT PRIMARY KEY,
+  balance_hours DECIMAL(10,2) NOT NULL DEFAULT 0,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES Employee(employee_id)
+);
+
+-- Request to use offset on a date (e.g. leave 2 hrs early, use 2 offset hrs so no absence)
+CREATE TABLE IF NOT EXISTS OffsetRequest (
+  request_id    INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id   INT NOT NULL,
+  hours_to_use  DECIMAL(10,2) NOT NULL,
+  date_to_apply DATE NOT NULL,
+  status        VARCHAR(20) NOT NULL DEFAULT 'pending',
+  requested_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  approved_by   INT,
+  approved_at   DATETIME,
+  notes         VARCHAR(500),
   FOREIGN KEY (employee_id) REFERENCES Employee(employee_id)
 );
 
@@ -152,10 +176,23 @@ CREATE TABLE IF NOT EXISTS `Leave` (
   FOREIGN KEY (employee_id) REFERENCES Employee(employee_id)
 );
 
+-- Statutory rates (Pag-IBIG fixed; SSS/PhilHealth manual or from tables)
+CREATE TABLE IF NOT EXISTS StatutorySetting (
+  name VARCHAR(100) PRIMARY KEY,
+  value_text VARCHAR(500),
+  value_decimal DECIMAL(18,4),
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+INSERT IGNORE INTO StatutorySetting (name, value_text, value_decimal) VALUES
+  ('pagibig_employee_share', NULL, 200.00),
+  ('pagibig_employer_share', NULL, 200.00),
+  ('philhealth_rate_pct', NULL, 5.00),
+  ('sss_note', 'Use SSS bracket or manual entry', NULL);
+
 -- Optional: seed one department, one employee, one role, one HR user (admin)
 INSERT INTO Department (department_code, department_name) VALUES ('HR', 'Human Resource & Development');
-INSERT INTO Employee (employee_code, full_name, basic_salary, daily_rate, hourly_rate, is_active)
-  VALUES ('ADMIN001', 'Admin User', 25000.00, 1250.00, 156.25, 1);
+INSERT INTO Employee (employee_code, full_name, basic_salary, daily_rate, hourly_rate, bank_account, is_active)
+  VALUES ('ADMIN001', 'Admin User', 25000.00, 1250.00, 156.25, NULL, 1);
 INSERT INTO EmployeeRole (employee_id, date_effective, is_active, department_id, role_type)
   VALUES (1, CURDATE(), 1, 1, 'Admin');
 INSERT INTO HRUser (employee_role_id, hr_role, username, password_hash)

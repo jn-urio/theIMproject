@@ -1,7 +1,10 @@
 import javax.swing.*;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -196,7 +199,6 @@ public class ReportExporter {
         }
     }
 
-<<<<<<< HEAD
     /** Export one employee's compiled DTR to CSV. periodId null = all periods. */
     public static File exportDTRToCsv(java.awt.Component parent, int employeeId, String employeeName, Integer periodId) {
         try {
@@ -210,7 +212,7 @@ public class ReportExporter {
                 writeRow(w, "Employee", employeeName != null ? employeeName : String.valueOf(employeeId));
                 writeRow(w, "Generated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
                 writeRow(w);
-                writeRow(w, "Date", "Time In", "Time Out", "Regular Hours", "Overtime Hours", "Status");
+                writeRow(w, "Date", "Time In", "Time Out", "Regular Hours", "Overtime Hours", "Offset Used", "Status");
                 for (DTRDao.DTRRow r : rows) {
                     writeRow(w,
                         r.dateVal != null ? r.dateVal.toString() : "",
@@ -218,8 +220,18 @@ public class ReportExporter {
                         r.timeOut != null ? r.timeOut.toString() : "",
                         r.regularHours != null ? r.regularHours.toPlainString() : "",
                         r.overtimeHours != null ? r.overtimeHours.toPlainString() : "",
+                        r.offsetHoursUsed != null ? r.offsetHoursUsed.toPlainString() : "0",
                         r.status != null ? r.status : "");
-=======
+                }
+            }
+            JOptionPane.showMessageDialog(parent, "Report saved to:\n" + file.getAbsolutePath(), "Export", JOptionPane.INFORMATION_MESSAGE);
+            return file;
+        } catch (SQLException | java.io.IOException ex) {
+            JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
     // ---------- Company-style reports (Rancho Palos Verdes format) ----------
 
     private static final String COMPANY_HEADER = "RANCHO PALOS VERDES GOLF AND COUNTRY CLUB";
@@ -238,10 +250,14 @@ public class ReportExporter {
         return DEDUCTION_TYPE_ALIASES.getOrDefault(t, t);
     }
 
-    /** Export deduction summary by department in company Excel format (pivot by employee, columns = deduction types). */
-    public static File exportDeductionSummaryCompanyFormat(java.awt.Component parent, int periodId, String periodLabel) {
+    /** Export deduction summary by department in company Excel format (pivot by employee, columns = deduction types). departmentFilter null = all; employeeIds null = all. */
+    public static File exportDeductionSummaryCompanyFormat(java.awt.Component parent, int periodId, String periodLabel, String departmentFilter, Set<Integer> employeeIds) {
         try {
             List<DeductionDao.DeductionExportRow> rows = DeductionDao.getDeductionDetailForExportByDepartment(periodId);
+            if (departmentFilter != null && !departmentFilter.isEmpty() && !"All (CLUBHOUSE)".equals(departmentFilter))
+                rows = rows.stream().filter(r -> departmentFilter.equals(r.departmentName)).collect(Collectors.toList());
+            if (employeeIds != null && !employeeIds.isEmpty())
+                rows = rows.stream().filter(r -> employeeIds.contains(r.employeeId)).collect(Collectors.toList());
             Map<String, Map<String, BigDecimal>> pivot = new LinkedHashMap<>(); // (dept|empId|name) -> (type -> amount)
             for (DeductionDao.DeductionExportRow r : rows) {
                 String key = r.departmentName + "|" + r.employeeId + "|" + r.employeeName;
@@ -341,15 +357,23 @@ public class ReportExporter {
         }
     }
 
+    public static File exportDeductionSummaryCompanyFormat(java.awt.Component parent, int periodId, String periodLabel) {
+        return exportDeductionSummaryCompanyFormat(parent, periodId, periodLabel, null, null);
+    }
+
     private static String formatMoney(BigDecimal bd) {
         if (bd == null || bd.compareTo(BigDecimal.ZERO) == 0) return "  -   ";
         return "  " + MONEY.format(bd) + " ";
     }
 
-    /** Export compensation summary by department in company format (Rate, per hr, hrs, Basic, Sick Leave, OT, Total). */
-    public static File exportCompensationSummaryCompanyFormat(java.awt.Component parent, int periodId, String periodLabel) {
+    /** Export compensation summary by department in company format. departmentFilter null = all; employeeIds null = all. */
+    public static File exportCompensationSummaryCompanyFormat(java.awt.Component parent, int periodId, String periodLabel, String departmentFilter, Set<Integer> employeeIds) {
         try {
             List<CompensationDao.CompensationExportRow> rows = CompensationDao.findByPeriodWithDepartment(periodId);
+            if (departmentFilter != null && !departmentFilter.isEmpty() && !"All (CLUBHOUSE)".equals(departmentFilter))
+                rows = rows.stream().filter(r -> departmentFilter.equals(r.departmentName)).collect(Collectors.toList());
+            if (employeeIds != null && !employeeIds.isEmpty())
+                rows = rows.stream().filter(r -> employeeIds.contains(r.employeeId)).collect(Collectors.toList());
             String defaultName = "Compensation_Summary_" + periodLabel.replaceAll("[^a-zA-Z0-9-]+", "_") + ".csv";
             File file = chooseSaveFile(parent, defaultName);
             if (file == null) return null;
@@ -402,10 +426,18 @@ public class ReportExporter {
         }
     }
 
-    /** Export signature ledger: by department, employee [code], gross, total deductions, net; department and division totals. */
-    public static File exportSignatureLedger(java.awt.Component parent, int periodId, String periodLabel) {
+    public static File exportCompensationSummaryCompanyFormat(java.awt.Component parent, int periodId, String periodLabel) {
+        return exportCompensationSummaryCompanyFormat(parent, periodId, periodLabel, null, null);
+    }
+
+    /** Export signature ledger: by department, employee [code], gross, deductions, net. departmentFilter null = all; employeeIds null = all. */
+    public static File exportSignatureLedger(java.awt.Component parent, int periodId, String periodLabel, String departmentFilter, Set<Integer> employeeIds) {
         try {
             List<PayrollDao.PayrollRowWithDept> rows = PayrollDao.findByPeriodWithDepartment(periodId);
+            if (departmentFilter != null && !departmentFilter.isEmpty() && !"All (CLUBHOUSE)".equals(departmentFilter))
+                rows = rows.stream().filter(r -> departmentFilter.equals(r.departmentName)).collect(Collectors.toList());
+            if (employeeIds != null && !employeeIds.isEmpty())
+                rows = rows.stream().filter(r -> employeeIds.contains(r.employeeId)).collect(Collectors.toList());
             String defaultName = "Signature_Ledger_" + periodLabel.replaceAll("[^a-zA-Z0-9-]+", "_") + ".csv";
             File file = chooseSaveFile(parent, defaultName);
             if (file == null) return null;
@@ -454,10 +486,24 @@ public class ReportExporter {
         }
     }
 
-    /** Export payroll funding (bank list): header with total/count, then D, employee name, employee account, amount, PAYROLL. */
-    public static File exportPayrollFunding(java.awt.Component parent, int periodId, String periodLabel, java.util.Date payDate) {
+    public static File exportSignatureLedger(java.awt.Component parent, int periodId, String periodLabel) {
+        return exportSignatureLedger(parent, periodId, periodLabel, null, null);
+    }
+
+    /** Export payroll funding (bank list). departmentFilter null = all (CLUBHOUSE); or filter by department name (e.g. GM, SUP). */
+    public static File exportPayrollFunding(java.awt.Component parent, int periodId, String periodLabel, java.util.Date payDate, String departmentFilter) {
         try {
-            List<PayrollDao.PayrollRow> rows = PayrollDao.findByPeriod(periodId);
+            List<PayrollDao.PayrollRow> rows;
+            if (departmentFilter != null && !departmentFilter.trim().isEmpty()) {
+                List<PayrollDao.PayrollRowWithDept> withDept = PayrollDao.findByPeriodWithDepartment(periodId);
+                rows = new java.util.ArrayList<>();
+                for (PayrollDao.PayrollRowWithDept r : withDept) {
+                    if (departmentFilter.equals(r.departmentName))
+                        rows.add(new PayrollDao.PayrollRow(r.payrollId, r.employeeId, r.fullName, r.employeeCode, r.payrollPeriodId, r.grossPay, r.totalDeductions, r.netPay, r.status));
+                }
+            } else {
+                rows = PayrollDao.findByPeriod(periodId);
+            }
             BigDecimal totalAmount = rows.stream().map(r -> r.netPay != null ? r.netPay : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
             String defaultName = "Payroll_Funding_" + periodLabel.replaceAll("[^a-zA-Z0-9-]+", "_") + ".csv";
             File file = chooseSaveFile(parent, defaultName);
@@ -479,7 +525,16 @@ public class ReportExporter {
         }
     }
 
-    /** Export 13th-month report for a quarter: periods in date range, per employee per month basic + 13th month, then total. */
+    /** Export payroll funding for all employees (no department filter). */
+    public static File exportPayrollFunding(java.awt.Component parent, int periodId, String periodLabel, java.util.Date payDate) {
+        return exportPayrollFunding(parent, periodId, periodLabel, payDate, null);
+    }
+
+    /**
+     * Export 13th-month report for a quarter.
+     * Rule: Monthly 13th-month pay = (sum of earnings from both cutoffs in that month) / 12.
+     * Total 13th Month = (sum of all basic in the quarter) / 12.
+     */
     public static File export13thMonth(java.awt.Component parent, java.sql.Date quarterStart, java.sql.Date quarterEnd) {
         try {
             List<PayrollPeriodDao.PayrollPeriod> periods = PayrollPeriodDao.getPeriodsInDateRange(quarterStart, quarterEnd);
@@ -492,9 +547,7 @@ public class ReportExporter {
             for (PayrollPeriodDao.PayrollPeriod p : periods) periodIdToStart.put(p.periodId, p.startDate);
 
             List<CompensationDao.CompensationRow> compRows = CompensationDao.findByPeriodsFor13thMonth(periodIds);
-            // Group by employee: (employeeId, fullName) -> list of (periodId, totalCompensation)
             Map<String, List<CompensationDao.CompensationRow>> byEmployee = compRows.stream().collect(Collectors.groupingBy(r -> r.employeeId + "|" + r.fullName));
-            // Build months in range (year-month from period start_date)
             Set<String> months = new TreeSet<>();
             for (PayrollPeriodDao.PayrollPeriod p : periods) {
                 if (p.startDate != null) months.add(p.startDate.toString().substring(0, 7));
@@ -507,27 +560,32 @@ public class ReportExporter {
             try (BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
                 writeRow(w, "13th Month Report", "", "", "", "", "", "", "", "", "", "", "");
                 writeRow(w, "SIGNATURE LEDGER", "", "", "", "", "", "", "", "", "", "", "");
-                writeRow(w, "", "EMPLOYEE", "", "", "", "");
-                List<String> headerCells = new ArrayList<>(Arrays.asList("", "", "", ""));
+                writeRow(w, "", "", "EMPLOYEE", "", "", "");
+                List<String> headerRow1 = new ArrayList<>(Arrays.asList("", "", "", ""));
                 for (String mon : monthList) {
-                    headerCells.add(mon);
-                    headerCells.add("");
-                    headerCells.add(mon);
-                    headerCells.add("");
+                    headerRow1.add(mon);
+                    headerRow1.add("");
+                    headerRow1.add("");
                 }
-                headerCells.add("TOTAL");
-                headerCells.add("13th Month");
-                writeRow(w, headerCells.toArray(new String[0]));
+                headerRow1.add("TOTAL");
+                headerRow1.add("13th Month");
+                writeRow(w, headerRow1.toArray(new String[0]));
+                List<String> headerRow2 = new ArrayList<>(Arrays.asList("", "", "", ""));
+                for (String mon : monthList) {
+                    headerRow2.add("Basic");
+                    headerRow2.add("Basic");
+                    headerRow2.add("13th Month");
+                }
+                headerRow2.add("Basic");
+                headerRow2.add("13th Month");
+                writeRow(w, headerRow2.toArray(new String[0]));
                 writeRow(w);
 
                 Map<String, BigDecimal> employeeMonthBasic = new LinkedHashMap<>();
-                Map<String, BigDecimal> employeeMonth13th = new LinkedHashMap<>();
                 for (String empKey : new TreeSet<>(byEmployee.keySet())) {
                     List<CompensationDao.CompensationRow> list = byEmployee.get(empKey);
-                    BigDecimal totalBasic = BigDecimal.ZERO;
                     for (CompensationDao.CompensationRow r : list) {
                         BigDecimal tot = r.totalCompensation != null ? r.totalCompensation : BigDecimal.ZERO;
-                        totalBasic = totalBasic.add(tot);
                         java.sql.Date start = periodIdToStart.get(r.payrollPeriodId);
                         if (start != null) {
                             String ym = start.toString().substring(0, 7);
@@ -535,8 +593,6 @@ public class ReportExporter {
                             employeeMonthBasic.merge(key, tot, BigDecimal::add);
                         }
                     }
-                    BigDecimal total13th = totalBasic.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
-                    employeeMonth13th.put(empKey, total13th);
                 }
 
                 for (String empKey : new TreeSet<>(byEmployee.keySet())) {
@@ -550,17 +606,22 @@ public class ReportExporter {
                     for (String mon : monthList) {
                         String key = empKey + "|" + mon;
                         BigDecimal basic = employeeMonthBasic.getOrDefault(key, BigDecimal.ZERO);
-                        BigDecimal thirteenth = basic.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+                        rowTotalBasic = rowTotalBasic.add(basic);
+                        BigDecimal thirteenth = BigDecimal.ZERO;
+                        if (basic.compareTo(BigDecimal.ZERO) > 0) {
+                            thirteenth = basic.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+                        }
                         cells.add(MONEY.format(basic));
                         cells.add(MONEY.format(basic));
                         cells.add(MONEY.format(thirteenth));
-                        rowTotalBasic = rowTotalBasic.add(basic);
                     }
-                    BigDecimal total13th = employeeMonth13th.getOrDefault(empKey, BigDecimal.ZERO);
+                    BigDecimal total13th = BigDecimal.ZERO;
+                    if (rowTotalBasic.compareTo(BigDecimal.ZERO) > 0) {
+                        total13th = rowTotalBasic.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+                    }
                     cells.add(MONEY.format(rowTotalBasic));
                     cells.add(MONEY.format(total13th));
                     writeRow(w, cells.toArray(new String[0]));
->>>>>>> 040cda7c373c704237fb3b8497dddac82cc7a271
                 }
             }
             JOptionPane.showMessageDialog(parent, "Report saved to:\n" + file.getAbsolutePath(), "Export", JOptionPane.INFORMATION_MESSAGE);
@@ -579,5 +640,186 @@ public class ReportExporter {
         File f = fc.getSelectedFile();
         if (f != null && !f.getName().toLowerCase().endsWith(".csv")) f = new File(f.getAbsolutePath() + ".csv");
         return f;
+    }
+
+    private static File chooseOpenFile(java.awt.Component parent, String title) {
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle(title != null ? title : "Open CSV");
+        if (fc.showOpenDialog(parent) != JFileChooser.APPROVE_OPTION) return null;
+        return fc.getSelectedFile();
+    }
+
+    /** Parse one CSV line into cells (handles quoted commas). */
+    private static List<String> parseCsvLine(String line) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean inQuotes = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    cell.append('"');
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                cells.add(cell.toString().trim());
+                cell.setLength(0);
+            } else {
+                cell.append(c);
+            }
+        }
+        cells.add(cell.toString().trim());
+        return cells;
+    }
+
+    /**
+     * Import deductions from CSV. Expected columns (header row optional):
+     * Period ID, Employee (ID or code), Type, Amount, Description, Status
+     * or: Employee, Type, Amount, Description (period from parameter).
+     * Matching: first column can be period_id or period name; employee by ID or employee_code.
+     */
+    public static boolean importDeductionsFromCsv(java.awt.Component parent, int periodId, Integer appliedBy) {
+        File file = chooseOpenFile(parent, "Select deductions CSV to import");
+        if (file == null || !file.exists()) return false;
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String firstLine = r.readLine();
+            if (firstLine == null) {
+                JOptionPane.showMessageDialog(parent, "File is empty.", "Import", JOptionPane.WARNING_MESSAGE);
+                return false;
+            }
+            List<String> header = parseCsvLine(firstLine);
+            int periodCol = -1, empCol = -1, typeCol = -1, amountCol = -1, descCol = -1, statusCol = -1;
+            for (int i = 0; i < header.size(); i++) {
+                String h = header.get(i).toLowerCase();
+                if (h.contains("period")) periodCol = i;
+                else if (h.contains("employee") || h.equals("emp")) empCol = i;
+                else if (h.contains("type")) typeCol = i;
+                else if (h.contains("amount")) amountCol = i;
+                else if (h.contains("description") || h.contains("desc")) descCol = i;
+                else if (h.contains("status")) statusCol = i;
+            }
+            if (empCol < 0 || typeCol < 0 || amountCol < 0) {
+                JOptionPane.showMessageDialog(parent, "CSV must have Employee, Type, and Amount columns (or similar).", "Import", JOptionPane.WARNING_MESSAGE);
+                return false;
+            }
+            int imported = 0, skipped = 0;
+            Map<String, Integer> periodNameToId = new HashMap<>();
+            for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) {
+                if (p.periodName != null) periodNameToId.put(p.periodName.trim().toLowerCase(), p.periodId);
+            }
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                List<String> cells = parseCsvLine(line);
+                if (cells.size() <= Math.max(empCol, Math.max(typeCol, amountCol))) { skipped++; continue; }
+                int rowPeriodId = periodId;
+                if (periodCol >= 0 && periodCol < cells.size() && !cells.get(periodCol).isEmpty()) {
+                    String pVal = cells.get(periodCol).trim();
+                    try {
+                        rowPeriodId = Integer.parseInt(pVal);
+                    } catch (NumberFormatException e) {
+                        Integer id = periodNameToId.get(pVal.toLowerCase());
+                        if (id != null) rowPeriodId = id;
+                    }
+                }
+                String empVal = cells.get(empCol).trim();
+                if (empVal.isEmpty()) { skipped++; continue; }
+                int employeeId = -1;
+                try {
+                    employeeId = Integer.parseInt(empVal);
+                    if (EmployeeDao.findById(employeeId) == null) employeeId = -1;
+                } catch (NumberFormatException ignored) {
+                    EmployeeDao.Employee emp = EmployeeDao.findByCode(empVal);
+                    if (emp != null) employeeId = emp.employeeId;
+                }
+                if (employeeId <= 0) { skipped++; continue; }
+                String type = cells.get(typeCol).trim();
+                if (type.isEmpty()) type = "Other";
+                BigDecimal amount;
+                try {
+                    amount = new BigDecimal(cells.get(amountCol).replaceAll("[^0-9.\\-]", ""));
+                } catch (Exception e) { skipped++; continue; }
+                String desc = descCol >= 0 && descCol < cells.size() ? cells.get(descCol) : "Imported from CSV";
+                String status = statusCol >= 0 && statusCol < cells.size() ? cells.get(statusCol) : "active";
+                if (status.isEmpty()) status = "active";
+                DeductionDao.insert(employeeId, rowPeriodId, type, amount, desc, status, appliedBy);
+                imported++;
+            }
+            JOptionPane.showMessageDialog(parent, "Imported " + imported + " deduction(s). Skipped " + skipped + " row(s).", "Import", JOptionPane.INFORMATION_MESSAGE);
+            return imported > 0;
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Import failed: " + ex.getMessage(), "Import", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
+
+    /**
+     * Import signature ledger from CSV (same format as export: row number, ".", employee name [code], "", "", gross, deductions, net).
+     * Creates or updates Payroll rows for the given period.
+     */
+    public static boolean importSignatureLedgerFromCsv(java.awt.Component parent, int periodId) {
+        File file = chooseOpenFile(parent, "Select signature ledger CSV to import");
+        if (file == null || !file.exists()) return false;
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            int imported = 0, updated = 0, skipped = 0;
+            List<EmployeeDao.EmployeeRow> allEmps = EmployeeDao.findAll();
+            Map<String, Integer> nameToId = new HashMap<>();
+            Map<String, Integer> codeToId = new HashMap<>();
+            for (EmployeeDao.EmployeeRow e : allEmps) {
+                if (e.fullName != null) nameToId.put(e.fullName.trim().toLowerCase(), e.employeeId);
+                if (e.employeeCode != null && !e.employeeCode.isEmpty()) codeToId.put(e.employeeCode.trim().toLowerCase(), e.employeeId);
+            }
+            while ((line = r.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                List<String> cells = parseCsvLine(line);
+                if (cells.size() < 8) continue;
+                String cell0 = cells.get(0).trim();
+                if (cell0.isEmpty() || "SIGNATURE".equalsIgnoreCase(cell0) || "PAYROLL".equalsIgnoreCase(cell0) || "CLUB".equalsIgnoreCase(cell0)
+                    || "GROSS".equalsIgnoreCase(cells.get(5).trim()) || "DEPARTMENT".equalsIgnoreCase(cell0))
+                    continue;
+                if ("DEPARTMENT TOTAL >>".equalsIgnoreCase(cells.get(3).trim()) || "DIVISION TOTAL >>".equalsIgnoreCase(cells.get(3).trim()))
+                    continue;
+                String empDisplay = cells.size() > 2 ? cells.get(2).trim() : "";
+                if (empDisplay.isEmpty()) continue;
+                String code = null;
+                if (empDisplay.contains("[") && empDisplay.contains("]")) {
+                    int start = empDisplay.indexOf('[');
+                    int end = empDisplay.indexOf(']');
+                    if (start < end) code = empDisplay.substring(start + 1, end).trim();
+                }
+                Integer employeeId = code != null ? codeToId.get(code.toLowerCase()) : null;
+                if (employeeId == null) employeeId = nameToId.get(empDisplay.replaceAll("\\s*\\[.*\\]\\s*", "").trim().toLowerCase());
+                if (employeeId == null) { skipped++; continue; }
+                BigDecimal gross = parseMoney(cells.get(5));
+                BigDecimal ded = parseMoney(cells.get(6));
+                BigDecimal net = parseMoney(cells.get(7));
+                if (gross == null) gross = BigDecimal.ZERO;
+                if (ded == null) ded = BigDecimal.ZERO;
+                if (net == null) net = BigDecimal.ZERO;
+                PayrollDao.PayrollRow existing = PayrollDao.findByEmployeeAndPeriod(employeeId, periodId);
+                if (existing != null) {
+                    PayrollDao.updateAmounts(existing.payrollId, gross, ded, net);
+                    updated++;
+                } else {
+                    PayrollDao.insert(employeeId, periodId, gross, ded, net, "draft");
+                    imported++;
+                }
+            }
+            JOptionPane.showMessageDialog(parent, "Ledger import: " + imported + " created, " + updated + " updated, " + skipped + " skipped.", "Import", JOptionPane.INFORMATION_MESSAGE);
+            return (imported + updated) > 0;
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Import failed: " + ex.getMessage(), "Import", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+    }
+
+    private static BigDecimal parseMoney(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        try {
+            return new BigDecimal(s.replaceAll("[^0-9.\\-]", "").trim());
+        } catch (Exception e) { return null; }
     }
 }
