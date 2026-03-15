@@ -71,3 +71,11 @@ So: **same Java code**, **different URL/user/password** for local (XAMPP) vs dep
 - `page.java` – Main window (Employee, Deductions, Compensation, etc.).
 - `*Dao.java` – Use `Database.getConnection()`; you can change the queries inside them.
 - `database/` – Reference SQL (H2-style); adapt and run in MySQL as you like.
+
+---
+
+## Note: DTR table column name
+
+**Label:** Schema compatibility for attendance / DTR export.
+
+The app’s Employee attendance (Present / Late / Absent) and “Export DTR to CSV” use the **DTR** table. The code in `DTRDao` expects the date column to be named **`date_val`**. If your schema uses **`dtr_date`** instead (e.g. from an ERD that names it `dtr_date`), update the SQL in `DTRDao` for `getStatusForDate` and `setAttendanceStatus` to use `dtr_date` instead of `date_val`.

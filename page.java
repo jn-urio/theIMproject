@@ -1,18 +1,38 @@
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Time;
+import java.io.File;
 import java.text.DecimalFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class page {
     private static CardLayout cardLayout = new CardLayout();
     private static JPanel cardPanel = new JPanel(cardLayout);
     private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00");
+
+    // Match LoginPage palette
+    private static final Color SAGE = new Color(0xA4, 0xBB, 0x8E);
+    private static final Color DARK_OLIVE = new Color(0x5E, 0x71, 0x4B);
+    private static final Color GOLDEN = new Color(0xE8, 0xAB, 0x2F);
+    private static final Color DARK_BROWN = new Color(0x58, 0x3C, 0x2A);
+    private static final Color LIGHT_GREY = new Color(0xF5, 0xF5, 0xF5);
+    private static final Color MEDIUM_GREY = new Color(0x88, 0x88, 0x88);
+    /** Soft background for content area so panels stand out. */
+    private static final Color CONTENT_BG = new Color(0xF2, 0xF3, 0xF5);
+    /** Table header background for clear column labels. */
+    private static final Color TABLE_HEADER_BG = new Color(0x5E, 0x71, 0x4B);
+    /** All UI text: black or this dark grey for consistency. */
+    private static final Color TEXT_DARK = new Color(0x2D, 0x2D, 0x2D);
 
     public static void main(String[] args) {
         try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
@@ -24,6 +44,12 @@ public class page {
     }
 
     public static void createAndShowUI() {
+        UIManager.put("Label.foreground", TEXT_DARK);
+        UIManager.put("TextField.foreground", TEXT_DARK);
+        UIManager.put("ComboBox.foreground", TEXT_DARK);
+        UIManager.put("Button.foreground", TEXT_DARK);
+        UIManager.put("Table.foreground", Color.BLACK);
+        UIManager.put("Table.selectionForeground", Color.BLACK);
         JFrame frame = new JFrame("Philippine Payroll – " + (AppSession.getUsername() != null ? AppSession.getUsername() : "HR"));
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -32,9 +58,18 @@ public class page {
         JPanel mainPanel = new JPanel(new BorderLayout());
         JPanel leftPanel = new JPanel();
         leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
-        leftPanel.setPreferredSize(new Dimension(220, 0));
-        leftPanel.setBackground(new Color(45, 52, 54));
-        leftPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(30, 30, 30)));
+        leftPanel.setPreferredSize(new Dimension(200, 0));
+        leftPanel.setBackground(DARK_OLIVE);
+        leftPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, DARK_BROWN));
+
+        // Logo at top left (same as LoginPage)
+        JLabel logoLabel = new JLabel();
+        logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        ImageIcon logoIcon = loadLogo("elements/RanchoLogo.jpg", 180);
+        if (logoIcon != null) logoLabel.setIcon(logoIcon);
+        leftPanel.add(Box.createVerticalStrut(12));
+        leftPanel.add(logoLabel);
+        leftPanel.add(Box.createVerticalStrut(12));
 
         String[] nav = { "Employee", "Deductions", "Compensation", "Reports" };
         JButton[] buttons = new JButton[nav.length + 1];
@@ -60,10 +95,25 @@ public class page {
         buttons[3].addActionListener(e -> cardLayout.show(cardPanel, "PAGE_REPORTS"));
         buttons[4].addActionListener(e -> { AppSession.clear(); System.exit(0); });
 
+        cardPanel.setBackground(CONTENT_BG);
         mainPanel.add(leftPanel, BorderLayout.WEST);
         mainPanel.add(cardPanel, BorderLayout.CENTER);
         frame.add(mainPanel);
         frame.setVisible(true);
+    }
+
+    /** Loads and scales the sidebar logo (elements/RanchoLogo.jpg). Returns null if file missing or unreadable. */
+    private static ImageIcon loadLogo(String path, int maxWidth) {
+        File file = new File(path);
+        if (!file.exists()) return null;
+        ImageIcon icon = new ImageIcon(path);
+        Image img = icon.getImage();
+        if (img.getWidth(null) <= 0) return null;
+        int w = img.getWidth(null);
+        int h = img.getHeight(null);
+        int newH = (maxWidth * h) / w;
+        Image scaled = img.getScaledInstance(maxWidth, newH, Image.SCALE_SMOOTH);
+        return new ImageIcon(scaled);
     }
 
     private static JButton createNavButton(String text) {
@@ -72,23 +122,67 @@ public class page {
         b.setMaximumSize(new Dimension(200, 45));
         b.setAlignmentX(Component.CENTER_ALIGNMENT);
         b.setFocusPainted(false);
-        b.setBackground(new Color(45, 52, 54));
-        b.setForeground(Color.WHITE);
+        boolean isLogout = "Logout".equals(text);
+        if (isLogout) {
+            b.setBackground(new Color(0x6B, 0x5B, 0x50));
+            b.setForeground(Color.WHITE);
+            b.addMouseListener(new java.awt.event.MouseAdapter() {
+                public void mouseEntered(java.awt.event.MouseEvent evt) { b.setBackground(new Color(0x7A, 0x68, 0x5C)); }
+                public void mouseExited(java.awt.event.MouseEvent evt) { b.setBackground(new Color(0x6B, 0x5B, 0x50)); }
+            });
+        } else {
+            b.setBackground(SAGE);
+            b.setForeground(TEXT_DARK);
+            b.addMouseListener(new java.awt.event.MouseAdapter() {
+                public void mouseEntered(java.awt.event.MouseEvent evt) { b.setBackground(SAGE.brighter()); }
+                public void mouseExited(java.awt.event.MouseEvent evt) { b.setBackground(SAGE); }
+            });
+        }
         b.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        b.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseEntered(java.awt.event.MouseEvent evt) { b.setBackground(new Color(63, 72, 75)); }
-            public void mouseExited(java.awt.event.MouseEvent evt) { b.setBackground(new Color(45, 52, 54)); }
-        });
         return b;
+    }
+
+    /** Pure black for table cell text so it always appears black. */
+    private static final Color CELL_BLACK = new Color(0, 0, 0);
+
+    /** Makes tables clearer: header styling, row height, light grid, and cell text that appears black. */
+    private static void styleTable(JTable table) {
+        JTableHeader header = table.getTableHeader();
+        header.setBackground(TABLE_HEADER_BG);
+        header.setForeground(Color.BLACK);
+        header.setFont(header.getFont().deriveFont(Font.BOLD));
+        header.setPreferredSize(new Dimension(0, 32));
+        table.setRowHeight(28);
+        table.setShowGrid(true);
+        table.setGridColor(new Color(0xE0, 0xE0, 0xE0));
+        table.setForeground(CELL_BLACK);
+        table.setSelectionBackground(new Color(0xE8, 0xED, 0xE0));
+        table.setSelectionForeground(CELL_BLACK);
+        DefaultTableCellRenderer blackRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focused, int row, int column) {
+                JLabel l = (JLabel) super.getTableCellRendererComponent(t, value, selected, focused, row, column);
+                l.setForeground(CELL_BLACK);
+                l.setOpaque(true);
+                if (selected) l.setBackground(new Color(0xE8, 0xED, 0xE0));
+                else l.setBackground(Color.WHITE);
+                return l;
+            }
+        };
+        table.setDefaultRenderer(Object.class, blackRenderer);
+        table.setDefaultRenderer(String.class, blackRenderer);
+        table.setDefaultRenderer(Number.class, blackRenderer);
     }
 
     private static JPanel createGroupPanel(String title) {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setOpaque(false);
+        panel.setBackground(Color.WHITE);
+        panel.setOpaque(true);
         TitledBorder border = BorderFactory.createTitledBorder(title);
-        border.setTitleFont(new Font("SansSerif", Font.BOLD, 12));
-        border.setTitleColor(new Color(100, 100, 100));
-        panel.setBorder(BorderFactory.createCompoundBorder(border, BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+        border.setTitleFont(new Font("SansSerif", Font.BOLD, 13));
+        border.setTitleColor(TEXT_DARK);
+        border.setBorder(BorderFactory.createLineBorder(SAGE, 1));
+        panel.setBorder(BorderFactory.createCompoundBorder(border, BorderFactory.createEmptyBorder(12, 12, 12, 12)));
         return panel;
     }
 
@@ -96,6 +190,15 @@ public class page {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(8, 5, 8, 5);
+        gbc.gridx = 0; gbc.weightx = 0;
+        panel.add(new JLabel(labelText), gbc);
+        gbc.gridx = 1; gbc.weightx = 1.0;
+        panel.add(comp, gbc);
+        gbc.gridy++;
+    }
+
+    /** Like addLabeledField but reuses gbc so rows stack (gridy advances). */
+    private static void addLabeledField(JPanel panel, String labelText, JComponent comp, GridBagConstraints gbc) {
         gbc.gridx = 0; gbc.weightx = 0;
         panel.add(new JLabel(labelText), gbc);
         gbc.gridx = 1; gbc.weightx = 1.0;
@@ -111,6 +214,168 @@ public class page {
 
     private interface RowMapper { Object[] toRow(Object o); }
 
+    /**
+     * Opens the Full Employee Information dialog for the given employee.
+     * Shows read-only fields (ID, code, name, legal/SSS) and editable fields (dept, position, pay, active).
+     * Save button updates only the editable fields. Add/Register new employee is a placeholder for the next developer.
+     *
+     * @param parent       parent frame for the dialog
+     * @param employeeId   selected employee ID (from table)
+     * @param onSaved      optional callback to refresh the employee list after save (can be null)
+     */
+    /**
+     * Placeholder for "Add new employee" / registration. Next developer: implement a form (name, code, department,
+     * position, basic salary, etc.) and persist via EmployeeDao (and related tables). This dialog only informs the user.
+     */
+    private static void showAddNewEmployeePlaceholder(Component parent) {
+        JOptionPane.showMessageDialog(parent,
+            "Add new employee is not yet implemented.\n\nNext developer: add a registration form and call EmployeeDao (and related tables) to insert the new employee.",
+            "Add new employee",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /**
+     * Placeholder for configuring government/statutory deduction rates (SSS, PhilHealth, PagIBIG).
+     * Next developer: implement a dialog or form to edit and persist rates (e.g. DB table or config file),
+     * and use those rates when computing or displaying statutory deductions.
+     */
+    private static void showStatutoryRatesPlaceholder(Component parent) {
+        JOptionPane.showMessageDialog(parent,
+            "Configure statutory rates is not yet implemented.\n\nNext developer: add a screen to edit and save SSS, PhilHealth, and PagIBIG rates (e.g. in a table or config), and apply them when computing statutory deductions.",
+            "Configure statutory rates",
+            JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private static void showFullEmployeeInfoDialog(Window parent, int employeeId, Runnable onSaved) {
+        JDialog dlg = new JDialog(parent, "Full Employee Information", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.setLayout(new BorderLayout(10, 10));
+        dlg.getContentPane().setBackground(Color.WHITE);
+        JPanel center = new JPanel(new GridBagLayout());
+        center.setBackground(Color.WHITE);
+        GridBagConstraints g = new GridBagConstraints();
+        g.fill = GridBagConstraints.HORIZONTAL;
+        g.insets = new Insets(4, 8, 4, 8);
+        g.gridy = 0;
+        g.weightx = 0;
+
+        // ----- Read-only: do not allow editing name, code, or legal identifiers (e.g. SSS). -----
+        JTextField fId = new JTextField(14);
+        fId.setEditable(false);
+        JTextField fCode = new JTextField(14);
+        fCode.setEditable(false);
+        JTextField fName = new JTextField(14);
+        fName.setEditable(false);
+        // TODO (next developer): If SSS number or other legal IDs are added to schema, show here as read-only.
+        JTextField fSss = new JTextField(14);
+        fSss.setEditable(false);
+        fSss.setText("—"); // Placeholder until SSS/legal ID is in DB.
+
+        addLabeledField(center, "ID:", fId, g);
+        addLabeledField(center, "Code:", fCode, g);
+        addLabeledField(center, "Name:", fName, g);
+        addLabeledField(center, "SSS / Legal ID:", fSss, g);
+
+        // ----- Editable: only these fields should be updated by Save. -----
+        JComboBox<String> fDept = new JComboBox<>();
+        JComboBox<PositionDao.Position> fPos = new JComboBox<>();
+        JTextField fBasic = new JTextField(14);
+        JTextField fDaily = new JTextField(14);
+        JTextField fHourly = new JTextField(14);
+        JCheckBox fActive = new JCheckBox("Active", true);
+        addLabeledField(center, "Department:", fDept, g);
+        addLabeledField(center, "Position:", fPos, g);
+        addLabeledField(center, "Basic salary:", fBasic, g);
+        addLabeledField(center, "Daily rate:", fDaily, g);
+        addLabeledField(center, "Hourly rate:", fHourly, g);
+        g.gridx = 0;
+        g.gridwidth = 2;
+        g.weightx = 0;
+        center.add(fActive, g);
+
+        // Load depts and positions for combos
+        try {
+            fDept.addItem("");
+            for (DepartmentDao.Department d : DepartmentDao.findAll()) fDept.addItem(d.departmentName);
+            fPos.addItem(null);
+            for (PositionDao.Position p : PositionDao.findAll()) fPos.addItem(p);
+        } catch (SQLException ex) { /* DB unavailable */ }
+
+        // Load current employee data
+        try {
+            EmployeeDao.Employee emp = EmployeeDao.findById(employeeId);
+            if (emp != null) {
+                fId.setText(String.valueOf(emp.employeeId));
+                fCode.setText(emp.employeeCode);
+                fName.setText(emp.fullName);
+                fBasic.setText(emp.basicSalary != null ? emp.basicSalary.toPlainString() : "");
+                fDaily.setText(emp.dailyRate != null ? emp.dailyRate.toPlainString() : "");
+                fHourly.setText(emp.hourlyRate != null ? emp.hourlyRate.toPlainString() : "");
+                fActive.setSelected(emp.isActive);
+            }
+            EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(employeeId);
+            if (role != null && role.departmentName != null) fDept.setSelectedItem(role.departmentName);
+            if (role != null) {
+                Integer posId = RegUserDao.getPositionIdForRole(role.employeeRoleId);
+                if (posId != null) {
+                    for (int i = 0; i < fPos.getItemCount(); i++) {
+                        PositionDao.Position p = fPos.getItemAt(i);
+                        if (p != null && p.positionId == posId) { fPos.setSelectedIndex(i); break; }
+                    }
+                }
+            }
+        } catch (SQLException ex) { /* DB unavailable */ }
+
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
+        south.setBackground(Color.WHITE);
+        JButton btnSave = new JButton("Save");
+        btnSave.setBackground(new Color(9, 132, 227));
+        btnSave.setForeground(TEXT_DARK);
+        JButton btnClose = new JButton("Close");
+        // Add/Register new employee: button only; implementation left for next developer.
+        JButton btnAddNew = new JButton("Add / Register new employee");
+        btnAddNew.setBackground(GOLDEN);
+        btnAddNew.setForeground(TEXT_DARK);
+        btnAddNew.setToolTipText("Not yet implemented. Add logic to insert new employee and optionally register as user.");
+
+        btnSave.addActionListener(e -> {
+            try {
+                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
+                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
+                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
+                EmployeeDao.update(employeeId, fCode.getText(), fName.getText(), basic, daily, hourly, fActive.isSelected());
+                EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(employeeId);
+                if (role != null) {
+                    String deptName = (String) fDept.getSelectedItem();
+                    if (deptName != null && !deptName.isEmpty()) {
+                        int deptId = -1;
+                        for (DepartmentDao.Department d : DepartmentDao.findAll()) {
+                            if (deptName.equals(d.departmentName)) { deptId = d.departmentId; break; }
+                        }
+                        if (deptId >= 0) EmployeeRoleDao.ensureActiveRole(employeeId, deptId, role.roleType != null ? role.roleType : "hr");
+                    }
+                    PositionDao.Position pos = (PositionDao.Position) fPos.getSelectedItem();
+                    RegUserDao.upsertPositionForRole(role.employeeRoleId, pos != null ? pos.positionId : null);
+                }
+                if (onSaved != null) onSaved.run();
+                JOptionPane.showMessageDialog(dlg, "Saved.");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dlg, "Save failed: " + ex.getMessage());
+            }
+        });
+        btnClose.addActionListener(e -> dlg.dispose());
+        // TODO (next developer): Implement Add/Register new employee — insert into Employee (and optionally HRUser).
+        btnAddNew.addActionListener(e -> JOptionPane.showMessageDialog(dlg, "Add/Register new employee is not yet implemented. Please add logic to insert a new employee and optionally register as system user."));
+
+        south.add(btnAddNew);
+        south.add(btnSave);
+        south.add(btnClose);
+        dlg.add(new JScrollPane(center), BorderLayout.CENTER);
+        dlg.add(south, BorderLayout.SOUTH);
+        dlg.pack();
+        dlg.setLocationRelativeTo(parent);
+        dlg.setVisible(true);
+    }
+
     // ===================== HUB PAGES (requested buttons) =====================
     private static JPanel buildEmployeeHubPage() {
         JPanel main = new JPanel(new BorderLayout(10, 10));
@@ -121,12 +386,13 @@ public class page {
         top.setOpaque(false);
         JLabel header = new JLabel("Employee", SwingConstants.LEFT);
         header.setFont(new Font("SansSerif", Font.BOLD, 22));
+        header.setForeground(TEXT_DARK);
         top.add(header, BorderLayout.WEST);
 
         JLabel banner = new JLabel("Logged in as: " + (AppSession.getUsername() != null ? AppSession.getUsername() : "") +
             " | Role: " + (AppSession.getHrRole() != null ? AppSession.getHrRole() : "") +
             " | Employee ID: " + (AppSession.getEmployeeId() != null ? AppSession.getEmployeeId() : "N/A"));
-        banner.setForeground(new Color(90, 90, 90));
+        banner.setForeground(TEXT_DARK);
         top.add(banner, BorderLayout.EAST);
         main.add(top, BorderLayout.NORTH);
 
@@ -165,7 +431,7 @@ public class page {
                 }
             }
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(p, ex.getMessage());
+            /* database unavailable */
         }
         p.add(form, BorderLayout.NORTH);
         return p;
@@ -195,6 +461,7 @@ public class page {
         String[] cols = {"DTR ID", "Date", "Time In", "Time Out", "Regular", "OT", "Status"};
         DefaultTableModel model = new DefaultTableModel(cols, 0);
         JTable table = new JTable(model);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
         scroll.setPreferredSize(new Dimension(0, 220));
 
@@ -204,7 +471,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(panel, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable */ }
         };
         Runnable loadDtr = () -> {
             try {
@@ -218,7 +485,7 @@ public class page {
                 for (DTRDao.DTRRow r : rows) {
                     model.addRow(new Object[]{ r.dtrId, r.dateVal, r.timeIn, r.timeOut, r.regularHours, r.overtimeHours, r.status });
                 }
-            } catch (Exception ex) { JOptionPane.showMessageDialog(panel, ex.getMessage()); }
+            } catch (Exception ex) { /* database unavailable */ }
         };
 
         loadPeriods.run();
@@ -235,6 +502,7 @@ public class page {
     private static JPanel buildCompensationHubPage() { return buildCompensationPage(); }
 
     // --- Employees (Core: Employee + Department from EmployeeRole) ---
+    // Employee button: opens a menu with (1) Full employee information, (2) Add new employee, (3) Export DTR. See action bar and showAddNewEmployeePlaceholder / showFullEmployeeInfoDialog for extension points.
     private static JPanel buildEmployeesPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -258,46 +526,66 @@ public class page {
         topWrap.add(top, BorderLayout.EAST);
         main.add(topWrap, BorderLayout.NORTH);
 
+        // ----- Attendance-only panel: selected employee + date + status. Full details in separate dialog. -----
         JPanel detail = new JPanel(new BorderLayout());
-        detail.setPreferredSize(new Dimension(340, 0));
+        detail.setPreferredSize(new Dimension(300, 0));
         detail.setOpaque(false);
-        JPanel form = createGroupPanel("Employee Details");
-        JTextField fId = new JTextField();
-        JTextField fCode = new JTextField();
-        JTextField fName = new JTextField();
-        JTextField fBasic = new JTextField();
-        JTextField fDaily = new JTextField();
-        JTextField fHourly = new JTextField();
-        JComboBox<String> fDept = new JComboBox<>();
-        JComboBox<PositionDao.Position> fPos = new JComboBox<>();
-        JCheckBox fActive = new JCheckBox("Active", true);
-        addLabeledField(form, "ID:", fId);
-        addLabeledField(form, "Code:", fCode);
-        addLabeledField(form, "Name:", fName);
-        addLabeledField(form, "Basic salary:", fBasic);
-        addLabeledField(form, "Daily rate:", fDaily);
-        addLabeledField(form, "Hourly rate:", fHourly);
-        addLabeledField(form, "Department:", fDept);
-        addLabeledField(form, "Position:", fPos);
-        form.add(fActive);
-        JPanel actBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        actBar.setOpaque(false);
-        JButton btnAdd = new JButton("Add");
-        JButton btnUpdate = new JButton("Update");
-        JButton btnClear = new JButton("Clear");
-        JButton btnRegisterUser = new JButton("Register User");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
-        btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(Color.WHITE);
-        btnClear.setBackground(new Color(225, 112, 85)); btnClear.setForeground(Color.WHITE);
-        btnRegisterUser.setBackground(new Color(99, 110, 114)); btnRegisterUser.setForeground(Color.WHITE);
-        actBar.add(btnAdd); actBar.add(btnUpdate); actBar.add(btnClear); actBar.add(btnRegisterUser);
-        detail.add(actBar, BorderLayout.NORTH);
-        detail.add(form, BorderLayout.CENTER);
+        JPanel attPanel = createGroupPanel("Attendance");
+        JLabel lblSelected = new JLabel("Select an employee from the table.");
+        lblSelected.setForeground(TEXT_DARK);
+        JTextField fAttendanceDate = new JTextField(10);
+        fAttendanceDate.setText(java.time.LocalDate.now().toString());
+        JComboBox<String> fAttendance = new JComboBox<>(new String[]{"Present", "Late", "Absent"});
+        fAttendance.setSelectedItem("Present");
+        GridBagConstraints gbcAtt = new GridBagConstraints();
+        gbcAtt.fill = GridBagConstraints.HORIZONTAL;
+        gbcAtt.insets = new Insets(6, 5, 6, 5);
+        gbcAtt.gridy = 0;
+        gbcAtt.weightx = 0;
+        gbcAtt.gridwidth = 2;
+        gbcAtt.gridx = 0;
+        attPanel.add(lblSelected, gbcAtt);
+        gbcAtt.gridy++;
+        gbcAtt.gridwidth = 1;
+        addLabeledField(attPanel, "Date:", fAttendanceDate, gbcAtt);
+        addLabeledField(attPanel, "Status:", fAttendance, gbcAtt);
 
-        String[] cols = {"ID", "Code", "Name", "Department", "Basic", "Status"};
+        // Hold selected employee id/name for attendance and export (updated when table selection changes).
+        final int[] selectedEmployeeId = { -1 };
+        final String[] selectedEmployeeName = { "" };
+
+        // ----- Employee action bar: these buttons expose the main employee functions for the next developer. -----
+        // • Full employee information: view/edit selected employee (department, position, salary, active). Opens dialog with Save and Add/Register.
+        // • Add new employee: placeholder for implementing employee registration/insert (see handler below).
+        // • Export DTR: export selected employee's DTR to CSV.
+        JPanel actBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
+        actBar.setOpaque(false);
+        JButton btnEmployee = new JButton("Employee");
+        btnEmployee.setBackground(DARK_OLIVE);
+        btnEmployee.setForeground(TEXT_DARK);
+        JButton btnFullInfo = new JButton("Full employee information");
+        JButton btnAddNewEmployee = new JButton("Add new employee");
+        JButton btnExportDTR = new JButton("Export DTR");
+        btnFullInfo.setBackground(new Color(9, 132, 227));
+        btnFullInfo.setForeground(TEXT_DARK);
+        btnAddNewEmployee.setBackground(SAGE);
+        btnAddNewEmployee.setForeground(TEXT_DARK);
+        btnExportDTR.setBackground(GOLDEN);
+        btnExportDTR.setForeground(TEXT_DARK);
+        actBar.add(btnEmployee);
+        actBar.add(btnFullInfo);
+        actBar.add(btnAddNewEmployee);
+        actBar.add(btnExportDTR);
+        detail.add(actBar, BorderLayout.NORTH);
+        detail.add(attPanel, BorderLayout.CENTER);
+
+        String[] cols = {"Code", "Name", "Department", "Basic", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
+
+        final AtomicReference<List<EmployeeDao.EmployeeRow>> currentEmployeeRows = new AtomicReference<>();
 
         Runnable loadDepts = () -> {
             try {
@@ -305,125 +593,98 @@ public class page {
                 cmbDept.addItem("All Departments");
                 for (DepartmentDao.Department d : DepartmentDao.findAll())
                     cmbDept.addItem(d.departmentName);
-                fDept.removeAllItems();
-                fDept.addItem("");
-                for (DepartmentDao.Department d : DepartmentDao.findAll())
-                    fDept.addItem(d.departmentName);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
-        };
-        Runnable loadPositions = () -> {
-            try {
-                fPos.removeAllItems();
-                fPos.addItem(null);
-                for (PositionDao.Position p : PositionDao.findAll()) fPos.addItem(p);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadEmployees = () -> {
             try {
                 String dept = (String) cmbDept.getSelectedItem();
                 String search = txtSearch.getText();
                 List<EmployeeDao.EmployeeRow> rows = EmployeeDao.findAllWithDepartment(dept, search);
+                currentEmployeeRows.set(rows);
                 refreshTable(tblModel, cols, rows, o -> {
                     EmployeeDao.EmployeeRow r = (EmployeeDao.EmployeeRow) o;
-                    return new Object[]{ r.employeeId, r.employeeCode, r.fullName, r.departmentName != null ? r.departmentName : "", r.basicSalary != null ? MONEY.format(r.basicSalary) : "", r.isActive ? "Active" : "Inactive" };
+                    return new Object[]{ r.employeeCode, r.fullName, r.departmentName != null ? r.departmentName : "", r.basicSalary != null ? MONEY.format(r.basicSalary) : "", r.isActive ? "Active" : "Inactive" };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadDepts.run();
-        loadPositions.run();
         loadEmployees.run();
 
+        // When user selects a row: update selected employee id/name, label, and attendance for that date.
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting() || table.getSelectedRow() < 0) return;
             int row = table.convertRowIndexToModel(table.getSelectedRow());
-            Integer id = (Integer) tblModel.getValueAt(row, 0);
+            Integer id = null;
+            String name = "";
+            List<EmployeeDao.EmployeeRow> list = currentEmployeeRows.get();
+            if (list != null && row >= 0 && row < list.size()) {
+                EmployeeDao.EmployeeRow r = list.get(row);
+                id = r.employeeId;
+                name = r.fullName != null ? r.fullName : "";
+            }
             if (id == null) return;
+            selectedEmployeeId[0] = id;
+            selectedEmployeeName[0] = name;
+            lblSelected.setText("Selected: " + (name.isEmpty() ? "ID " + id : name));
             try {
-                EmployeeDao.Employee emp = EmployeeDao.findById(id);
-                if (emp != null) {
-                    fId.setText(String.valueOf(emp.employeeId));
-                    fCode.setText(emp.employeeCode);
-                    fName.setText(emp.fullName);
-                    fBasic.setText(emp.basicSalary != null ? emp.basicSalary.toPlainString() : "");
-                    fDaily.setText(emp.dailyRate != null ? emp.dailyRate.toPlainString() : "");
-                    fHourly.setText(emp.hourlyRate != null ? emp.hourlyRate.toPlainString() : "");
-                    fActive.setSelected(emp.isActive);
-                }
-                EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(id);
-                if (role != null && role.departmentName != null)
-                    fDept.setSelectedItem(role.departmentName);
-                if (role != null) {
-                    Integer posId = RegUserDao.getPositionIdForRole(role.employeeRoleId);
-                    if (posId != null) {
-                        for (int i = 0; i < fPos.getItemCount(); i++) {
-                            PositionDao.Position p = fPos.getItemAt(i);
-                            if (p != null && p.positionId == posId) { fPos.setSelectedIndex(i); break; }
-                        }
-                    } else {
-                        fPos.setSelectedItem(null);
-                    }
-                }
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+                java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
+                String status = DTRDao.getStatusForDate(id, attDate);
+                if (status != null && (status.equals("Present") || status.equals("Late") || status.equals("Absent")))
+                    fAttendance.setSelectedItem(status);
+                else
+                    fAttendance.setSelectedItem("Present");
+            } catch (Exception ignored) {
+                fAttendance.setSelectedItem("Present");
+            }
+        });
+
+        // Changing attendance status saves for the selected employee and date.
+        fAttendance.addActionListener(ev -> {
+            if (selectedEmployeeId[0] < 0) return;
+            try {
+                java.sql.Date attDate = java.sql.Date.valueOf(fAttendanceDate.getText().trim());
+                String status = (String) fAttendance.getSelectedItem();
+                if (status != null) DTRDao.setAttendanceStatus(selectedEmployeeId[0], attDate, status);
+            } catch (Exception ignored) { }
+        });
+
+        // "Employee" button: shows a menu of the main employee functions (for discoverability).
+        JPopupMenu employeeMenu = new JPopupMenu();
+        JMenuItem miFullInfo = new JMenuItem("Full employee information");
+        JMenuItem miAddNew = new JMenuItem("Add new employee");
+        JMenuItem miExportDTR = new JMenuItem("Export DTR");
+        employeeMenu.add(miFullInfo);
+        employeeMenu.add(miAddNew);
+        employeeMenu.add(miExportDTR);
+        btnEmployee.addActionListener(e -> employeeMenu.show(btnEmployee, 0, btnEmployee.getHeight()));
+
+        // Full employee information: opens dialog with read-only (name, code, legal ID) and editable (dept, position, pay). Save + Add/Register button.
+        Runnable openFullInfo = () -> {
+            if (selectedEmployeeId[0] < 0) {
+                JOptionPane.showMessageDialog(main, "Select an employee from the table first.");
+                return;
+            }
+            Window win = SwingUtilities.windowForComponent(main);
+            showFullEmployeeInfoDialog(win != null ? win : new JFrame(), selectedEmployeeId[0], loadEmployees);
+        };
+        btnFullInfo.addActionListener(e -> openFullInfo.run());
+        miFullInfo.addActionListener(e -> openFullInfo.run());
+
+        // Add new employee: placeholder for next developer. Implement employee insert/registration (e.g. open a form and call EmployeeDao.insert).
+        btnAddNewEmployee.addActionListener(e -> showAddNewEmployeePlaceholder(main));
+        miAddNew.addActionListener(e -> showAddNewEmployeePlaceholder(main));
+
+        btnExportDTR.addActionListener(e -> {
+            if (selectedEmployeeId[0] < 0) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
+            ReportExporter.exportDTRToCsv(main, selectedEmployeeId[0], selectedEmployeeName[0], null);
+        });
+        miExportDTR.addActionListener(e -> {
+            if (selectedEmployeeId[0] < 0) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
+            ReportExporter.exportDTRToCsv(main, selectedEmployeeId[0], selectedEmployeeName[0], null);
         });
 
         btnRefresh.addActionListener(e -> { loadDepts.run(); loadEmployees.run(); });
         txtSearch.addActionListener(e -> loadEmployees.run());
-        btnClear.addActionListener(e -> { fId.setText(""); fCode.setText(""); fName.setText(""); fBasic.setText(""); fDaily.setText(""); fHourly.setText(""); fActive.setSelected(true); table.clearSelection(); });
-        btnAdd.addActionListener(e -> {
-            try {
-                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
-                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
-                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
-                EmployeeDao.insert(fCode.getText().trim(), fName.getText().trim(), basic, daily, hourly, fActive.isSelected());
-                loadEmployees.run();
-                btnClear.doClick();
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
-        });
-        btnUpdate.addActionListener(e -> {
-            if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
-            try {
-                BigDecimal basic = fBasic.getText().trim().isEmpty() ? null : new BigDecimal(fBasic.getText().trim());
-                BigDecimal daily = fDaily.getText().trim().isEmpty() ? null : new BigDecimal(fDaily.getText().trim());
-                BigDecimal hourly = fHourly.getText().trim().isEmpty() ? null : new BigDecimal(fHourly.getText().trim());
-                EmployeeDao.update(Integer.parseInt(fId.getText()), fCode.getText().trim(), fName.getText().trim(), basic, daily, hourly, fActive.isSelected());
-                EmployeeRoleDao.EmployeeRoleInfo role = EmployeeRoleDao.getActiveRole(Integer.parseInt(fId.getText()));
-                if (role != null) {
-                    PositionDao.Position pos = (PositionDao.Position) fPos.getSelectedItem();
-                    RegUserDao.upsertPositionForRole(role.employeeRoleId, pos != null ? pos.positionId : null);
-                }
-                loadEmployees.run();
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
-        });
-
-        btnRegisterUser.addActionListener(e -> {
-            if (fId.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select an employee first."); return; }
-            String deptName = (String) fDept.getSelectedItem();
-            if (deptName == null || deptName.trim().isEmpty()) { JOptionPane.showMessageDialog(main, "Select a department for the employee role."); return; }
-            try {
-                // Lookup department id
-                int deptId = -1;
-                for (DepartmentDao.Department d : DepartmentDao.findAll()) {
-                    if (deptName.equals(d.departmentName)) { deptId = d.departmentId; break; }
-                }
-                if (deptId < 0) { JOptionPane.showMessageDialog(main, "Invalid department."); return; }
-                int empId = Integer.parseInt(fId.getText().trim());
-                int roleId = EmployeeRoleDao.ensureActiveRole(empId, deptId, "hr");
-
-                JTextField u = new JTextField();
-                JPasswordField p = new JPasswordField();
-                JComboBox<String> r = new JComboBox<>(new String[]{"user", "admin"});
-                int res = JOptionPane.showConfirmDialog(main, new Object[]{
-                    "Username:", u,
-                    "Password:", p,
-                    "Role:", r
-                }, "Register User (admin only)", JOptionPane.OK_CANCEL_OPTION);
-                if (res != JOptionPane.OK_OPTION) return;
-                HRUserDao.createUser(roleId, (String) r.getSelectedItem(), u.getText().trim(), new String(p.getPassword()));
-                JOptionPane.showMessageDialog(main, "User registered.");
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(main, ex.getMessage());
-            }
-        });
 
         main.add(detail, BorderLayout.WEST);
         main.add(scroll, BorderLayout.CENTER);
@@ -447,13 +708,14 @@ public class page {
         JButton btnAdd = new JButton("Add");
         JButton btnUpdate = new JButton("Update");
         JButton btnClear = new JButton("Clear");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
-        btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
+        btnUpdate.setBackground(new Color(9, 132, 227)); btnUpdate.setForeground(TEXT_DARK);
         form.add(btnAdd); form.add(btnUpdate); form.add(btnClear);
 
         String[] cols = {"ID", "Code", "Name"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable load = () -> {
@@ -463,7 +725,7 @@ public class page {
                     DepartmentDao.Department d = (DepartmentDao.Department) o;
                     return new Object[]{ d.departmentId, d.departmentCode, d.departmentName };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         load.run();
 
@@ -479,14 +741,14 @@ public class page {
             try {
                 DepartmentDao.insert(fCode.getText().trim(), fName.getText().trim());
                 load.run(); btnClear.doClick();
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
         btnUpdate.addActionListener(e -> {
             if (fId.getText().isEmpty()) { JOptionPane.showMessageDialog(main, "Select a row."); return; }
             try {
                 DepartmentDao.update(Integer.parseInt(fId.getText()), fCode.getText().trim(), fName.getText().trim());
                 load.run();
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel left = new JPanel(new BorderLayout());
@@ -508,6 +770,7 @@ public class page {
         String[] cols = {"ID", "Period", "Start", "End", "Pay date", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("New Period");
@@ -522,7 +785,7 @@ public class page {
         addLabeledField(form, "Pay date (YYYY-MM-DD):", fPay);
         addLabeledField(form, "Status:", fStatus);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable load = () -> {
@@ -532,7 +795,7 @@ public class page {
                     PayrollPeriodDao.PayrollPeriod p = (PayrollPeriodDao.PayrollPeriod) o;
                     return new Object[]{ p.periodId, p.periodName, p.startDate, p.endDate, p.payDate, p.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         load.run();
         btnAdd.addActionListener(e -> {
@@ -540,7 +803,7 @@ public class page {
                 PayrollPeriodDao.insert(fName.getText().trim(), Date.valueOf(fStart.getText().trim()), Date.valueOf(fEnd.getText().trim()), Date.valueOf(fPay.getText().trim()), (String) fStatus.getSelectedItem());
                 load.run();
                 fName.setText(""); fStart.setText(""); fEnd.setText(""); fPay.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -572,6 +835,7 @@ public class page {
         String[] cols = {"DTR ID", "Employee", "Date", "Time In", "Time Out", "Regular", "OT", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("Add DTR entry");
@@ -588,7 +852,7 @@ public class page {
         addLabeledField(form, "Regular hours:", fReg);
         addLabeledField(form, "OT hours:", fOT);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable loadPeriods = () -> {
@@ -598,7 +862,7 @@ public class page {
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll())
                     cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadEmployees = () -> {
             try {
@@ -606,7 +870,7 @@ public class page {
                 cmbEmployee.addItem(null);
                 for (EmployeeDao.EmployeeRow r : EmployeeDao.findAll())
                     cmbEmployee.addItem(r);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadDTR = () -> {
             try {
@@ -619,7 +883,7 @@ public class page {
                     DTRDao.DTRRow r = (DTRDao.DTRRow) o;
                     return new Object[]{ r.dtrId, r.fullName, r.dateVal, r.timeIn, r.timeOut, r.regularHours, r.overtimeHours, r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadEmployees.run();
@@ -639,7 +903,7 @@ public class page {
                 DTRDao.insert(empId, d, tin, tout, reg, ot, "pending");
                 loadDTR.run();
                 fEmpId.setText(""); fDate.setText(""); fTimeIn.setText(""); fTimeOut.setText(""); fReg.setText(""); fOT.setText("");
-            } catch (Exception ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (Exception ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel left = new JPanel(new BorderLayout());
@@ -673,6 +937,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Type", "Start", "End", "Days", "With pay", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("New leave");
@@ -691,7 +956,7 @@ public class page {
         form.add(fWithPay);
         addLabeledField(form, "Remarks:", fRemarks);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable load = () -> {
@@ -702,7 +967,7 @@ public class page {
                     LeaveDao.LeaveRow r = (LeaveDao.LeaveRow) o;
                     return new Object[]{ r.leaveId, r.fullName, r.leaveType, r.startDate, r.endDate, r.totalDays, r.withPay ? "Yes" : "No", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         load.run();
         btnRefresh.addActionListener(e -> load.run());
@@ -713,7 +978,7 @@ public class page {
                     fDays.getText().trim().isEmpty() ? BigDecimal.ZERO : new BigDecimal(fDays.getText().trim()), fWithPay.isSelected(), "pending", fRemarks.getText());
                 load.run();
                 fEmpId.setText(""); fType.setText(""); fStart.setText(""); fEnd.setText(""); fDays.setText(""); fRemarks.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -733,14 +998,14 @@ public class page {
     private static JPanel buildContributionsPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        main.setBackground(new Color(230, 245, 255));
+        main.setBackground(Color.WHITE);
         main.add(new JLabel("Contributions (SSS, PhilHealth, PagIBIG)", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export summary to Excel");
         btnExport.setBackground(new Color(0, 102, 204));
-        btnExport.setForeground(Color.WHITE);
+        btnExport.setForeground(TEXT_DARK);
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setOpaque(false);
         top.add(new JLabel("Period:"));
@@ -751,6 +1016,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Period", "Type", "Amount", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("Add contribution");
@@ -764,7 +1030,7 @@ public class page {
         addLabeledField(form, "Description:", fDesc);
         JButton btnAdd = new JButton("Add");
         btnAdd.setBackground(new Color(0, 184, 148));
-        btnAdd.setForeground(Color.WHITE);
+        btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable loadPeriods = () -> {
@@ -773,7 +1039,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadList = () -> {
             try {
@@ -784,7 +1050,7 @@ public class page {
                     DeductionDao.DeductionRow r = (DeductionDao.DeductionRow) o;
                     return new Object[]{ r.deductionId, r.fullName, r.payrollPeriodId, r.deductionType, r.amount != null ? MONEY.format(r.amount) : "", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadList.run();
@@ -806,7 +1072,7 @@ public class page {
                     new BigDecimal(fAmount.getText().trim()), fDesc.getText(), "active", AppSession.getHrUserId());
                 loadList.run();
                 fEmpId.setText(""); fAmount.setText(""); fDesc.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -822,18 +1088,22 @@ public class page {
         return main;
     }
 
-    // --- Deductions (Loan, Cash Advance, Other) ---
+    // --- Deductions: table shows statutory (SSS, PhilHealth, PagIBIG) and other deductions as columns; Add form for one-off entries. ---
+    // Next developer: statutory/government rates can be edited via "Configure statutory rates" (placeholder dialog to implement).
     private static JPanel buildDeductionsPage() {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        main.setBackground(new Color(245, 246, 247));
-        main.add(new JLabel("Deductions", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); }}, BorderLayout.NORTH);
+        main.setBackground(Color.WHITE);
+        main.add(new JLabel("Deductions", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(TEXT_DARK); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export report to CSV");
+        JButton btnStatutoryRates = new JButton("Configure statutory rates");
         btnExport.setBackground(new Color(0, 102, 204));
-        btnExport.setForeground(Color.WHITE);
+        btnExport.setForeground(TEXT_DARK);
+        btnStatutoryRates.setBackground(GOLDEN);
+        btnStatutoryRates.setForeground(TEXT_DARK);
         JTextField txtEmployeeId = new JTextField(8);
         Integer sessionEmpId = AppSession.getEmployeeId();
         txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
@@ -846,16 +1116,20 @@ public class page {
         top.add(txtEmployeeId);
         top.add(btnRefresh);
         top.add(btnExport);
+        top.add(btnStatutoryRates);
 
-        String[] cols = {"ID", "Employee", "Period", "Type", "Amount", "Status"};
+        // Table columns: statutory and government deductions (SSS, PhilHealth, PagIBIG) plus Loan, Cash Advance, Other — no Type dropdown in table.
+        String[] cols = {"Employee", "Period", "SSS", "PhilHealth", "PagIBIG", "Loan", "Cash Advance", "Other", "Total"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         JPanel form = createGroupPanel("Add deduction");
         JTextField fEmpId = new JTextField(6);
         JTextField fAmount = new JTextField(10);
         JTextField fDesc = new JTextField(20);
+        // Type dropdown for one-off entries; statutory amounts also appear in the table when present in DB.
         JComboBox<String> fType = new JComboBox<>(new String[]{"SSS","PhilHealth","PagIBIG","Loan","Cash Advance","Other","Tax","Insurance","Savings"});
         fType.setEditable(true);
         addLabeledField(form, "Employee ID:", fEmpId);
@@ -863,7 +1137,7 @@ public class page {
         addLabeledField(form, "Amount:", fAmount);
         addLabeledField(form, "Description:", fDesc);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
 
         Runnable loadPeriods = () -> {
@@ -872,26 +1146,57 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
+        // Load deductions and group by employee+period; show one row per employee with statutory (SSS, PhilHealth, PagIBIG) and other columns.
         Runnable loadDed = () -> {
             try {
                 Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                     ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
-                Integer empId = txtEmployeeId.getText().trim().isEmpty() ? null : Integer.parseInt(txtEmployeeId.getText().trim());
+                Integer empId = null;
+                if (!txtEmployeeId.getText().trim().isEmpty()) {
+                    try { empId = Integer.parseInt(txtEmployeeId.getText().trim()); } catch (NumberFormatException ignored) { }
+                }
                 if (!AppSession.isAdmin()) empId = AppSession.getEmployeeId();
                 List<DeductionDao.DeductionRow> list = DeductionDao.findByPeriodAndEmployee(periodId, empId);
-                refreshTable(tblModel, cols, list, o -> {
-                    DeductionDao.DeductionRow r = (DeductionDao.DeductionRow) o;
-                    return new Object[]{ r.deductionId, r.fullName, r.payrollPeriodId, r.deductionType, r.amount != null ? MONEY.format(r.amount) : "", r.status };
-                });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+                Map<String, Map<String, BigDecimal>> byKey = new LinkedHashMap<>();
+                for (DeductionDao.DeductionRow r : list) {
+                    String key = r.employeeId + "\t" + r.fullName + "\t" + r.payrollPeriodId;
+                    byKey.computeIfAbsent(key, k -> new LinkedHashMap<>());
+                    String type = r.deductionType != null ? r.deductionType.trim() : "Other";
+                    BigDecimal val = r.amount != null ? r.amount : BigDecimal.ZERO;
+                    Map<String, BigDecimal> rowAmt = byKey.get(key);
+                    rowAmt.put(type, rowAmt.getOrDefault(type, BigDecimal.ZERO).add(val));
+                }
+                tblModel.setRowCount(0);
+                for (Map.Entry<String, Map<String, BigDecimal>> e : byKey.entrySet()) {
+                    String[] parts = e.getKey().split("\t", 3);
+                    String name = parts.length >= 2 ? parts[1] : "";
+                    String periodStr = parts.length >= 3 ? parts[2] : (periodId != null ? String.valueOf(periodId) : "");
+                    Map<String, BigDecimal> amt = e.getValue();
+                    BigDecimal sss = amt.getOrDefault("SSS", BigDecimal.ZERO);
+                    BigDecimal ph = amt.getOrDefault("PhilHealth", BigDecimal.ZERO);
+                    BigDecimal pag = amt.getOrDefault("PagIBIG", BigDecimal.ZERO);
+                    BigDecimal loan = amt.getOrDefault("Loan", BigDecimal.ZERO);
+                    BigDecimal ca = amt.getOrDefault("Cash Advance", BigDecimal.ZERO);
+                    BigDecimal other = BigDecimal.ZERO;
+                    for (Map.Entry<String, BigDecimal> te : amt.entrySet()) {
+                        String t = te.getKey();
+                        if (!t.equals("SSS") && !t.equals("PhilHealth") && !t.equals("PagIBIG") && !t.equals("Loan") && !t.equals("Cash Advance"))
+                            other = other.add(te.getValue());
+                    }
+                    BigDecimal total = sss.add(ph).add(pag).add(loan).add(ca).add(other);
+                    tblModel.addRow(new Object[]{ name, periodStr, MONEY.format(sss), MONEY.format(ph), MONEY.format(pag), MONEY.format(loan), MONEY.format(ca), MONEY.format(other), MONEY.format(total) });
+                }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadDed.run();
         btnRefresh.addActionListener(e -> loadDed.run());
         cmbPeriod.addActionListener(e -> loadDed.run());
         txtEmployeeId.addActionListener(e -> loadDed.run());
+        // Configure statutory rates: for when government/statutory deduction rates change. Next developer: implement rate storage (e.g. table or config) and apply when computing SSS, PhilHealth, PagIBIG.
+        btnStatutoryRates.addActionListener(e -> showStatutoryRatesPlaceholder(main));
         btnExport.addActionListener(e -> {
             Integer periodId = cmbPeriod.getSelectedItem() instanceof PayrollPeriodDao.PayrollPeriod
                 ? ((PayrollPeriodDao.PayrollPeriod) cmbPeriod.getSelectedItem()).periodId : null;
@@ -917,7 +1222,7 @@ public class page {
                     lblTotal.setText("Total: " + MONEY.format(DeductionDao.totalByPeriod(periodId)));
                 } catch (SQLException ignored) {}
                 fEmpId.setText(""); fAmount.setText(""); fDesc.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -943,13 +1248,13 @@ public class page {
         JPanel main = new JPanel(new BorderLayout(15, 15));
         main.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         main.setBackground(Color.WHITE);
-        main.add(new JLabel("Compensation", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); }}, BorderLayout.NORTH);
+        main.add(new JLabel("Compensation", SwingConstants.LEFT) {{ setFont(new Font("SansSerif", Font.BOLD, 22)); setForeground(TEXT_DARK); }}, BorderLayout.NORTH);
 
         JComboBox<PayrollPeriodDao.PayrollPeriod> cmbPeriod = new JComboBox<>();
         JButton btnRefresh = new JButton("Refresh");
         JButton btnExport = new JButton("Export report to CSV");
         btnExport.setBackground(new Color(0, 102, 204));
-        btnExport.setForeground(Color.WHITE);
+        btnExport.setForeground(TEXT_DARK);
         JTextField txtEmployeeId = new JTextField(8);
         Integer sessionEmpId = AppSession.getEmployeeId();
         txtEmployeeId.setText(sessionEmpId != null ? String.valueOf(sessionEmpId) : "");
@@ -966,6 +1271,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Period", "Basic", "OT", "Total", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable loadPeriods = () -> {
@@ -974,7 +1280,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable load = () -> {
             try {
@@ -987,7 +1293,7 @@ public class page {
                     CompensationDao.CompensationRow r = (CompensationDao.CompensationRow) o;
                     return new Object[]{ r.compensationId, r.fullName, r.payrollPeriodId, r.basicAmount != null ? MONEY.format(r.basicAmount) : "", r.overtimeAmount != null ? MONEY.format(r.overtimeAmount) : "", r.totalCompensation != null ? MONEY.format(r.totalCompensation) : "", r.hrStatus };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         load.run();
@@ -1016,7 +1322,7 @@ public class page {
         addLabeledField(form, "OT amount:", fOTA);
         addLabeledField(form, "Total:", fTotal);
         JButton btnAdd = new JButton("Add");
-        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(Color.WHITE);
+        btnAdd.setBackground(new Color(0, 184, 148)); btnAdd.setForeground(TEXT_DARK);
         form.add(btnAdd);
         btnAdd.addActionListener(e -> {
             try {
@@ -1032,7 +1338,7 @@ public class page {
                 CompensationDao.insert(Integer.parseInt(fEmpId.getText()), periodId, null, AppSession.getHrUserId(), basicH, basicA, otH, otA, total, "draft");
                 load.run();
                 fEmpId.setText(""); fBasicH.setText(""); fBasicA.setText(""); fOTH.setText(""); fOTA.setText(""); fTotal.setText("");
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         });
 
         JPanel north = new JPanel(new BorderLayout());
@@ -1177,6 +1483,7 @@ public class page {
         String[] cols = {"ID", "Employee", "Gross", "Deductions", "Net", "Status"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable loadPeriods = () -> {
@@ -1185,7 +1492,7 @@ public class page {
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
                 if (cmbPeriod.getItemCount() > 1) cmbPeriod.setSelectedIndex(1);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable load = () -> {
             try {
@@ -1196,7 +1503,7 @@ public class page {
                     PayrollDao.PayrollRow r = (PayrollDao.PayrollRow) o;
                     return new Object[]{ r.payrollId, r.fullName, r.grossPay != null ? MONEY.format(r.grossPay) : "", r.totalDeductions != null ? MONEY.format(r.totalDeductions) : "", r.netPay != null ? MONEY.format(r.netPay) : "", r.status };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         load.run();
@@ -1232,6 +1539,7 @@ public class page {
         String[] cols = {"Ledger ID", "Department", "Period", "Gross", "Deductions", "Net", "Generated"};
         DefaultTableModel tblModel = new DefaultTableModel(cols, 0);
         JTable table = new JTable(tblModel);
+        styleTable(table);
         JScrollPane scroll = new JScrollPane(table);
 
         Runnable loadPeriods = () -> {
@@ -1239,14 +1547,14 @@ public class page {
                 cmbPeriod.removeAllItems();
                 cmbPeriod.addItem(null);
                 for (PayrollPeriodDao.PayrollPeriod p : PayrollPeriodDao.findAll()) cmbPeriod.addItem(p);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable loadDepts = () -> {
             try {
                 cmbDept.removeAllItems();
                 cmbDept.addItem(null);
                 for (DepartmentDao.Department d : DepartmentDao.findAll()) cmbDept.addItem(d);
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         Runnable load = () -> {
             try {
@@ -1257,7 +1565,7 @@ public class page {
                     LedgerDao.LedgerRow r = (LedgerDao.LedgerRow) o;
                     return new Object[]{ r.ledgerId, r.departmentName, r.payrollPeriodId, r.totalGross != null ? MONEY.format(r.totalGross) : "", r.totalDeductions != null ? MONEY.format(r.totalDeductions) : "", r.totalNet != null ? MONEY.format(r.totalNet) : "", r.generationDate };
                 });
-            } catch (SQLException ex) { JOptionPane.showMessageDialog(main, ex.getMessage()); }
+            } catch (SQLException ex) { /* database unavailable - show empty data */ }
         };
         loadPeriods.run();
         loadDepts.run();

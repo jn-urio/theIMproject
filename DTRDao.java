@@ -24,6 +24,37 @@ public class DTRDao {
         return list;
     }
 
+    /** Get attendance status for an employee on a given date (Present, Late, Absent, or null if no record). */
+    public static String getStatusForDate(int employeeId, Date dateVal) throws SQLException {
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT status FROM DTR WHERE employee_id=? AND date_val=? LIMIT 1")) {
+            ps.setInt(1, employeeId);
+            ps.setDate(2, dateVal);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
+    }
+
+    /** Set attendance status for an employee on a date (Present, Late, Absent). Updates existing DTR row or inserts minimal row. */
+    public static void setAttendanceStatus(int employeeId, Date dateVal, String status) throws SQLException {
+        try (Connection c = Database.getConnection();
+             PreparedStatement upd = c.prepareStatement("UPDATE DTR SET status=? WHERE employee_id=? AND date_val=?")) {
+            upd.setString(1, status);
+            upd.setInt(2, employeeId);
+            upd.setDate(3, dateVal);
+            if (upd.executeUpdate() > 0) return;
+        }
+        try (Connection c = Database.getConnection();
+             PreparedStatement ins = c.prepareStatement(
+                 "INSERT INTO DTR (employee_id, date_val, time_in, time_out, regular_hours, overtime_hours, status) VALUES (?,?,NULL,NULL,0,0,?)")) {
+            ins.setInt(1, employeeId);
+            ins.setDate(2, dateVal);
+            ins.setString(3, status);
+            ins.executeUpdate();
+        }
+    }
+
     public static void insert(int employeeId, Date dateVal, Time timeIn, Time timeOut, java.math.BigDecimal regularHours, java.math.BigDecimal overtimeHours, String status) throws SQLException {
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(

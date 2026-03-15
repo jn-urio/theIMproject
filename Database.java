@@ -12,15 +12,20 @@ public class Database {
     private static final String USER = "root";
     private static final String PASS = "";
 
+    private static boolean driverMissing = false;
+
     static {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException("MySQL driver not found. Add mysql-connector-j jar to lib/ and reference it.", e);
+            driverMissing = true;
         }
     }
 
     public static Connection getConnection() throws SQLException {
+        if (driverMissing) {
+            throw new SQLException("Database not available.");
+        }
         return DriverManager.getConnection(JDBC_URL, USER, PASS);
     }
 }
