@@ -5,11 +5,28 @@ import java.util.List;
 public class PayrollPeriodDao {
     public static List<PayrollPeriod> findAll() throws SQLException {
         List<PayrollPeriod> list = new ArrayList<>();
+        java.sql.Date today = new java.sql.Date(System.currentTimeMillis());
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement("SELECT period_id, period_name, start_date, end_date, pay_date, status FROM PayrollPeriod ORDER BY start_date DESC");
              ResultSet rs = ps.executeQuery()) {
-            while (rs.next())
-                list.add(new PayrollPeriod(rs.getInt(1), rs.getString(2), rs.getDate(3), rs.getDate(4), rs.getDate(5), rs.getString(6)));
+            while (rs.next()) {
+                int id = rs.getInt(1);
+                String name = rs.getString(2);
+                Date start = rs.getDate(3);
+                Date end = rs.getDate(4);
+                Date pay = rs.getDate(5);
+                String status = rs.getString(6);
+                String computedStatus = status;
+                if (start != null && end != null) {
+                    // Auto-open when today is within [start, end]; auto-close when today is after end.
+                    if (!today.before(start) && !today.after(end)) {
+                        computedStatus = "open";
+                    } else if (today.after(end)) {
+                        computedStatus = "closed";
+                    }
+                }
+                list.add(new PayrollPeriod(id, name, start, end, pay, computedStatus));
+            }
         }
         return list;
     }

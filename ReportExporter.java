@@ -16,6 +16,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 /**
  * Exports summary reports to CSV (Excel-compatible). Uses comma separator and quoted fields.
  */
@@ -443,45 +446,125 @@ public class ReportExporter {
                 rows = rows.stream().filter(r -> departmentFilter.equals(r.departmentName)).collect(Collectors.toList());
             if (employeeIds != null && !employeeIds.isEmpty())
                 rows = rows.stream().filter(r -> employeeIds.contains(r.employeeId)).collect(Collectors.toList());
-            String defaultName = "Signature_Ledger_" + periodLabel.replaceAll("[^a-zA-Z0-9-]+", "_") + ".csv";
-            File file = chooseSaveFile(parent, defaultName);
+            String defaultName = "Signature_Ledger_" + periodLabel.replaceAll("[^a-zA-Z0-9-]+", "_") + ".xlsx";
+            File file = chooseSaveXlsxFile(parent, defaultName);
             if (file == null) return null;
-            try (BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
-                writeRow(w, "", "", "SIGNATURE LEDGER");
-                writeRow(w, "", "", "PAYROLL PERIOD: " + periodLabel);
-                writeRow(w);
-                writeRow(w, "", "", "CLUB HOUSE", "", "", "", "", "", "");
-                writeRow(w, "", "", "", "", "", "GROSS", "TOTAL", "NET");
-                writeRow(w, "", "", "", "", "", "PAY", "DEDUCTIONS", "PAY");
-                writeRow(w);
+            try (Workbook wb = new XSSFWorkbook(); FileOutputStream out = new FileOutputStream(file)) {
+                Sheet sheet = wb.createSheet("Signature Ledger");
+                CreationHelper helper = wb.getCreationHelper();
+                CellStyle moneyStyle = wb.createCellStyle();
+                DataFormat df = helper.createDataFormat();
+                moneyStyle.setDataFormat(df.getFormat("#,##0.00"));
+
+                int rowIdx = 0;
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(2).setCellValue("SIGNATURE LEDGER");
+                row = sheet.createRow(rowIdx++);
+                row.createCell(2).setCellValue("PAYROLL PERIOD: " + periodLabel);
+                rowIdx++; // blank row
+                row = sheet.createRow(rowIdx++);
+                row.createCell(2).setCellValue("CLUB HOUSE");
+                row = sheet.createRow(rowIdx++);
+                row.createCell(5).setCellValue("GROSS");
+                row.createCell(6).setCellValue("TOTAL");
+                row.createCell(7).setCellValue("NET");
+                row = sheet.createRow(rowIdx++);
+                row.createCell(5).setCellValue("PAY");
+                row.createCell(6).setCellValue("DEDUCTIONS");
+                row.createCell(7).setCellValue("PAY");
+                rowIdx++; // blank
+
                 String lastDept = "";
                 BigDecimal deptGross = BigDecimal.ZERO, deptDed = BigDecimal.ZERO, deptNet = BigDecimal.ZERO;
                 BigDecimal divGross = BigDecimal.ZERO, divDed = BigDecimal.ZERO, divNet = BigDecimal.ZERO;
-                int rowNum = 0;
+                int seq = 0;
+
                 for (PayrollDao.PayrollRowWithDept r : rows) {
                     if (!r.departmentName.equals(lastDept)) {
                         if (!lastDept.isEmpty()) {
-                            writeRow(w, "", "", "", "DEPARTMENT TOTAL >>", "", MONEY.format(deptGross), MONEY.format(deptDed), MONEY.format(deptNet));
-                            writeRow(w);
+                            Row deptTotal = sheet.createRow(rowIdx++);
+                            deptTotal.createCell(3).setCellValue("DEPARTMENT TOTAL >>");
+                            Cell gCell = deptTotal.createCell(5);
+                            gCell.setCellValue(deptGross.doubleValue());
+                            gCell.setCellStyle(moneyStyle);
+                            Cell dCell = deptTotal.createCell(6);
+                            dCell.setCellValue(deptDed.doubleValue());
+                            dCell.setCellStyle(moneyStyle);
+                            Cell nCell = deptTotal.createCell(7);
+                            nCell.setCellValue(deptNet.doubleValue());
+                            nCell.setCellStyle(moneyStyle);
+                            rowIdx++; // blank row between departments
                         }
                         lastDept = r.departmentName;
-                        writeRow(w, "", "", r.departmentName);
-                        writeRow(w);
-                        deptGross = deptDed = deptNet = BigDecimal.ZERO;
+                        Row deptHeader = sheet.createRow(rowIdx++);
+                        deptHeader.createCell(2).setCellValue(r.departmentName);
+                        rowIdx++; // blank after header
+                        deptGross = BigDecimal.ZERO;
+                        deptDed = BigDecimal.ZERO;
+                        deptNet = BigDecimal.ZERO;
                     }
-                    rowNum++;
+
+                    seq++;
                     BigDecimal gross = r.grossPay != null ? r.grossPay : BigDecimal.ZERO;
                     BigDecimal ded = r.totalDeductions != null ? r.totalDeductions : BigDecimal.ZERO;
                     BigDecimal net = r.netPay != null ? r.netPay : BigDecimal.ZERO;
-                    deptGross = deptGross.add(gross); deptDed = deptDed.add(ded); deptNet = deptNet.add(net);
-                    divGross = divGross.add(gross); divDed = divDed.add(ded); divNet = divNet.add(net);
-                    String empDisplay = r.employeeCode != null && !r.employeeCode.isEmpty() ? r.fullName + " [" + r.employeeCode + "]" : r.fullName;
-                    writeRow(w, String.valueOf(rowNum), ".", empDisplay, "", "", MONEY.format(gross), MONEY.format(ded), MONEY.format(net));
+                    deptGross = deptGross.add(gross);
+                    deptDed = deptDed.add(ded);
+                    deptNet = deptNet.add(net);
+                    divGross = divGross.add(gross);
+                    divDed = divDed.add(ded);
+                    divNet = divNet.add(net);
+
+                    Row dataRow = sheet.createRow(rowIdx++);
+                    dataRow.createCell(0).setCellValue(seq);
+                    dataRow.createCell(1).setCellValue(".");
+                    String empDisplay = r.employeeCode != null && !r.employeeCode.isEmpty()
+                        ? r.fullName + " [" + r.employeeCode + "]"
+                        : r.fullName;
+                    dataRow.createCell(2).setCellValue(empDisplay);
+                    Cell gCell = dataRow.createCell(5);
+                    gCell.setCellValue(gross.doubleValue());
+                    gCell.setCellStyle(moneyStyle);
+                    Cell dCell = dataRow.createCell(6);
+                    dCell.setCellValue(ded.doubleValue());
+                    dCell.setCellStyle(moneyStyle);
+                    Cell nCell = dataRow.createCell(7);
+                    nCell.setCellValue(net.doubleValue());
+                    nCell.setCellStyle(moneyStyle);
                 }
-                if (!lastDept.isEmpty())
-                    writeRow(w, "", "", "", "DEPARTMENT TOTAL >>", "", MONEY.format(deptGross), MONEY.format(deptDed), MONEY.format(deptNet));
-                writeRow(w);
-                writeRow(w, "", "", "", "DIVISION TOTAL >>", "", MONEY.format(divGross), MONEY.format(divDed), MONEY.format(divNet));
+
+                if (!lastDept.isEmpty()) {
+                    Row deptTotal = sheet.createRow(rowIdx++);
+                    deptTotal.createCell(3).setCellValue("DEPARTMENT TOTAL >>");
+                    Cell gCell = deptTotal.createCell(5);
+                    gCell.setCellValue(deptGross.doubleValue());
+                    gCell.setCellStyle(moneyStyle);
+                    Cell dCell = deptTotal.createCell(6);
+                    dCell.setCellValue(deptDed.doubleValue());
+                    dCell.setCellStyle(moneyStyle);
+                    Cell nCell = deptTotal.createCell(7);
+                    nCell.setCellValue(deptNet.doubleValue());
+                    nCell.setCellStyle(moneyStyle);
+                    rowIdx++;
+                }
+
+                Row divTotal = sheet.createRow(rowIdx++);
+                divTotal.createCell(3).setCellValue("DIVISION TOTAL >>");
+                Cell gCell = divTotal.createCell(5);
+                gCell.setCellValue(divGross.doubleValue());
+                gCell.setCellStyle(moneyStyle);
+                Cell dCell = divTotal.createCell(6);
+                dCell.setCellValue(divDed.doubleValue());
+                dCell.setCellStyle(moneyStyle);
+                Cell nCell = divTotal.createCell(7);
+                nCell.setCellValue(divNet.doubleValue());
+                nCell.setCellStyle(moneyStyle);
+
+                for (int i = 0; i <= 7; i++) {
+                    sheet.autoSizeColumn(i);
+                }
+
+                wb.write(out);
             }
             JOptionPane.showMessageDialog(parent, "Report saved to:\n" + file.getAbsolutePath(), "Export", JOptionPane.INFORMATION_MESSAGE);
             return file;
@@ -644,6 +727,17 @@ public class ReportExporter {
         if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return null;
         File f = fc.getSelectedFile();
         if (f != null && !f.getName().toLowerCase().endsWith(".csv")) f = new File(f.getAbsolutePath() + ".csv");
+        return f;
+    }
+
+    private static File chooseSaveXlsxFile(java.awt.Component parent, String defaultName) {
+        JFileChooser fc = new JFileChooser();
+        fc.setSelectedFile(new File(defaultName));
+        fc.setDialogTitle("Save report as Excel (.xlsx)");
+        if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return null;
+        File f = fc.getSelectedFile();
+        if (f != null && !f.getName().toLowerCase().endsWith(".xlsx"))
+            f = new File(f.getAbsolutePath() + ".xlsx");
         return f;
     }
 
